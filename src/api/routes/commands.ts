@@ -14,6 +14,15 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
   };
 
 /**
+ * GET /api/v1/commands
+ * Fetch recent commands for the Sync Logs dashboard
+ */
+router.get('/', asyncHandler(async (_req: Request, res: Response) => {
+  const commands = await CommandService.getAllCommands(50);
+  res.json(successResponse(commands, 'Commands fetched successfully'));
+}));
+
+/**
  * POST /api/v1/commands/reboot/:sn
  * Reboots the device with the given Serial Number
  */

@@ -21,6 +21,7 @@
                 <a href="#devices" class="nav-item">Devices</a>
                 <a href="#users" class="nav-item">Users</a>
                 <a href="#attendance" class="nav-item">Attendance</a>
+                <a href="#synclogs" class="nav-item">Sync Logs</a>
             </nav>
             <div class="sidebar-footer">
                 <span class="status-indicator online"></span> Live Server
@@ -31,7 +32,10 @@
         <main class="main-content">
             <header>
                 <h1 id="page-title">Overview</h1>
-                <div class="header-actions">
+                <div class="header-actions" style="display: flex; align-items: center; gap: 20px;">
+                    <div id="global-device-status" class="status-badge offline" style="font-weight: 600; padding: 8px 16px; border-radius: 20px; background: rgba(255, 59, 48, 0.2); color: #ff3b30; border: 1px solid rgba(255, 59, 48, 0.4); transition: all 0.3s ease;">
+                        Device: 🔴 Offline
+                    </div>
                     <button class="btn btn-secondary" id="refresh-btn">Refresh Data</button>
                 </div>
             </header>
@@ -106,6 +110,32 @@
                             <tbody id="attendance-tbody">
                                 <tr>
                                     <td colspan="4" class="text-center">Loading attendance data...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Sync Logs Section -->
+                <section id="synclogs-section" class="card glass-panel content-section">
+                    <div class="card-header">
+                        <h3>Command Sync Logs</h3>
+                    </div>
+                    <div class="table-container">
+                        <table id="synclogs-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Device SN</th>
+                                    <th>Command Data</th>
+                                    <th>Status</th>
+                                    <th>Created At</th>
+                                    <th>Completed At</th>
+                                </tr>
+                            </thead>
+                            <tbody id="synclogs-tbody">
+                                <tr>
+                                    <td colspan="6" class="text-center">Loading sync logs...</td>
                                 </tr>
                             </tbody>
                         </table>

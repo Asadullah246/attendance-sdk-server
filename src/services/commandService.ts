@@ -88,4 +88,14 @@ export class CommandService {
       where: { id: commandId },
     });
   }
+
+  /**
+   * Fetches the recent command history for the sync log dashboard
+   */
+  static async getAllCommands(limit: number = 50) {
+    return prisma.commandQueue.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  }
 }

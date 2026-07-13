@@ -2,11 +2,13 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchDevices();
     fetchAttendance();
     fetchUsers();
+    fetchCommands();
 
     document.getElementById('refresh-btn').addEventListener('click', () => {
         fetchDevices();
         fetchAttendance();
         fetchUsers();
+        fetchCommands();
         showToast('Data refreshed');
     });
     
@@ -52,6 +54,27 @@ async function fetchDevices() {
         
         if (json.success && json.data.length > 0) {
             tbody.innerHTML = '';
+            
+            // Update Global Status Badge based on the most recently active device
+            const latestDevice = json.data[0];
+            const globalBadge = document.getElementById('global-device-status');
+            if (globalBadge && latestDevice) {
+                const msSinceLastActivity = Date.now() - new Date(latestDevice.lastActivity).getTime();
+                if (msSinceLastActivity < 90000) { // 90 seconds tolerance
+                    globalBadge.className = 'status-badge online';
+                    globalBadge.style.background = 'rgba(52, 199, 89, 0.2)';
+                    globalBadge.style.color = '#34c759';
+                    globalBadge.style.borderColor = 'rgba(52, 199, 89, 0.4)';
+                    globalBadge.innerHTML = 'Device: 🟢 Active';
+                } else {
+                    globalBadge.className = 'status-badge offline';
+                    globalBadge.style.background = 'rgba(255, 59, 48, 0.2)';
+                    globalBadge.style.color = '#ff3b30';
+                    globalBadge.style.borderColor = 'rgba(255, 59, 48, 0.4)';
+                    globalBadge.innerHTML = 'Device: 🔴 Offline';
+                }
+            }
+
             json.data.forEach(device => {
                 const isOnline = device.isOnline;
                 const statusBadge = `<span class="badge ${isOnline ? 'badge-online' : 'badge-offline'}">${isOnline ? 'Online' : 'Offline'}</span>`;
@@ -231,5 +254,48 @@ async function deleteUser(uid) {
     } catch (e) {
         console.error(e);
         showToast('Failed to delete user');
+    }
+}
+
+// Command Sync Logs
+async function fetchCommands() {
+    try {
+        const response = await fetch('/api/v1/commands');
+        const json = await response.json();
+        const tbody = document.getElementById('synclogs-tbody');
+        
+        if (json.success && json.data.length > 0) {
+            tbody.innerHTML = '';
+            json.data.forEach(cmd => {
+                let badgeClass = 'badge-secondary';
+                let statusIcon = '🟡';
+                if (cmd.status === 'sent') { badgeClass = 'badge-primary'; statusIcon = '🔵'; }
+                if (cmd.status === 'completed') { badgeClass = 'badge-online'; statusIcon = '🟢'; }
+                if (cmd.status === 'failed') { badgeClass = 'badge-offline'; statusIcon = '🔴'; }
+
+                const statusBadge = `<span class="badge ${badgeClass}">${statusIcon} ${cmd.status.toUpperCase()}</span>`;
+                const createdTime = new Date(cmd.createdAt).toLocaleString();
+                const completedTime = cmd.completedAt ? new Date(cmd.completedAt).toLocaleString() : '-';
+                
+                // Truncate long command data for cleaner display
+                const cmdData = cmd.commandData.length > 60 ? cmd.commandData.substring(0, 60) + '...' : cmd.commandData;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>#${cmd.id}</strong></td>
+                    <td>${cmd.deviceSn}</td>
+                    <td style="font-family: monospace; font-size: 0.9em; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${cmd.commandData}">${cmdData}</td>
+                    <td>${statusBadge}</td>
+                    <td style="font-size: 0.85em; color: #666;">${createdTime}</td>
+                    <td style="font-size: 0.85em; color: #666;">${completedTime}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center">No commands in queue.</td></tr>';
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Failed to load sync logs');
     }
 }
