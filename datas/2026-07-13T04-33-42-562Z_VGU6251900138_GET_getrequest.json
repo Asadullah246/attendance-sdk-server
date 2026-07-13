@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-07-13T04:33:42.562Z",
+  "method": "GET",
+  "endpoint": "getrequest",
+  "sn": "VGU6251900138",
+  "query": {
+    "SN": "VGU6251900138"
+  },
+  "body": null
+}

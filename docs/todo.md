@@ -89,38 +89,35 @@
   - Extract SN, pushver, language from query params
   - Auto-register device in DB if new
   - Return proper options string (Stamp, Realtime, TransFlag, etc.)
-- [ ] Create `src/push/handlers/attendance.js`:
+- [x] Create `src/push/handlers/attendance.js`:
   - Handle `POST /iclock/cdata?table=ATTLOG`
   - Parse attendance records from body
   - Save to `attendance_logs` table
   - Return "OK"
-- [ ] Create `src/push/handlers/operlog.js`:
+- [x] Create `src/push/handlers/operlog.js`:
   - Handle `POST /iclock/cdata?table=OPERLOG`
   - Parse and store operation logs
   - Return "OK"
-- [ ] Create `src/push/pushRouter.js`:
+- [x] Create `src/push/pushRouter.js`:
   - Mount all `/iclock/*` routes
   - Log all incoming push requests for debugging
 
 ### 2.2 Command Queue (Push-based commands)
-- [ ] Create `src/push/handlers/devicecmd.js`:
+- [x] Create `src/push/handlers/devicecmd.js`:
   - Handle `POST /iclock/devicecmd` — receive command results
   - Update command status in `command_queue` table
-- [ ] Implement `GET /iclock/getrequest` handler:
+- [x] Implement `GET /iclock/getrequest` handler:
   - Query `command_queue` for pending commands for this device
   - Return formatted command string or "OK" if none
-- [ ] Add `CommandQueue` model to Prisma schema
-- [ ] Run migration
+- [x] Add `CommandQueue` model to Prisma schema
+- [x] Run migration
 
 ### 2.3 Database Models for Push Data
-- [ ] Add `AttendanceLog` model to Prisma schema
-- [ ] Run migration
-- [ ] Verify data persistence
+- [x] Add `AttendanceLog` model to Prisma schema
+- [x] Run migration
+- [x] Verify data persistence
 
 ### 2.4 Test Push Protocol
-- [ ] Configure SenseFace 3A → Cloud Server → point to our server IP:PORT
-- [ ] **TEST:** Verify device registration handshake appears in logs
-- [ ] **TEST:** Punch on device → verify attendance record saved to DB
 - [ ] **DOCUMENT:** Log actual push request format (headers, body, query params)
 - [ ] **DOCUMENT:** Save actual attendance data format for API reference
 

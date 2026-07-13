@@ -7,6 +7,7 @@ import { successResponse, formatUptime } from './utils/helpers';
 
 // Import routers
 import testRoutes from './api/routes/test';
+import pushRouter from './push/iclock';
 
 const app = express();
 
@@ -51,9 +52,9 @@ app.get('/health', (_req: Request, res: Response) => {
 // Test routes (Phase 1 — device connectivity testing)
 app.use('/api/v1/test', testRoutes);
 
-// ─── iClock Push Protocol Routes (Phase 2 — placeholder) ────────────
-// Will be added in Phase 2
-// app.use('/iclock', pushRouter);
+// ─── iClock Push Protocol Routes (Phase 2) ───────────────────────────
+// ADMS devices hardcode their push endpoints to start with /iclock
+app.use('/iclock', pushRouter);
 
 // ─── 404 Handler ─────────────────────────────────────────────────────
 app.use((req: Request, res: Response) => {

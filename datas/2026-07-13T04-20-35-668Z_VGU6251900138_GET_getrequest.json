@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-07-13T04:20:35.668Z",
+  "method": "GET",
+  "endpoint": "getrequest",
+  "sn": "VGU6251900138",
+  "query": {
+    "SN": "VGU6251900138",
+    "INFO": "ZAM70-NF28VA-Ver3.0.15,1,1,1,192.168.0.210,13,40,12,0,11110,0,0,0"
+  },
+  "body": null
+}
