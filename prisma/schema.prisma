@@ -1,0 +1,123 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Device ──────────────────────────────────────────────────────────
+// Registered ZKTeco devices (auto-registered via push or manual)
+model Device {
+  id            Int       @id @default(autoincrement())
+  serialNumber  String    @unique @map("serial_number")
+  name          String?
+  model         String?
+  ipAddress     String?   @map("ip_address")
+  location      String?
+  firmware      String?
+  platform      String?
+  macAddress    String?   @map("mac_address")
+  isOnline      Boolean   @default(false) @map("is_online")
+  lastActivity  DateTime? @map("last_activity")
+  pushEnabled   Boolean   @default(true) @map("push_enabled")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  userDevices   UserDevice[]
+  commandQueue  CommandQueue[]
+
+  @@map("devices")
+}
+
+// ─── User ────────────────────────────────────────────────────────────
+// Users/Employees synced to ZKTeco devices
+model User {
+  id          Int       @id @default(autoincrement())
+  uid         Int                                     // ZKTeco internal user ID
+  name        String
+  employeeId  String?   @map("employee_id")           // Your system's employee ID
+  cardNumber  String?   @map("card_number")
+  privilege   Int       @default(0)                   // 0=User, 14=SuperAdmin
+  password    String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  userDevices UserDevice[]
+
+  @@map("users")
+}
+
+// ─── UserDevice (Many-to-Many) ───────────────────────────────────────
+// Tracks which users are enrolled on which devices
+model UserDevice {
+  userId    Int       @map("user_id")
+  deviceId  Int       @map("device_id")
+  syncedAt  DateTime? @map("synced_at")
+
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device    Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@id([userId, deviceId])
+  @@map("user_devices")
+}
+
+// ─── AttendanceLog ───────────────────────────────────────────────────
+// Attendance records received from devices
+model AttendanceLog {
+  id          Int       @id @default(autoincrement())
+  deviceSn    String    @map("device_sn")
+  uid         Int
+  punchTime   DateTime  @map("punch_time")
+  status      Int?                                    // 0=Check-in, 1=Check-out, etc.
+  verifyType  Int?      @map("verify_type")           // 1=Finger, 15=Face, 4=Card
+  source      String    @default("push")              // 'push' or 'pull'
+  forwarded   Boolean   @default(false)               // Sent to backend apps?
+  rawData     String?   @map("raw_data")              // Original data for debugging
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@unique([deviceSn, uid, punchTime])
+  @@index([deviceSn])
+  @@index([uid])
+  @@index([punchTime])
+  @@map("attendance_logs")
+}
+
+// ─── Webhook ─────────────────────────────────────────────────────────
+// Webhook subscriptions from backend apps
+model Webhook {
+  id            Int       @id @default(autoincrement())
+  url           String
+  events        String    @default("*")               // 'attendance', 'device_status', etc.
+  secret        String?                               // HMAC signing secret
+  isActive      Boolean   @default(true) @map("is_active")
+  lastTriggered DateTime? @map("last_triggered")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@map("webhooks")
+}
+
+// ─── CommandQueue ────────────────────────────────────────────────────
+// Pending commands for push protocol delivery
+model CommandQueue {
+  id          Int       @id @default(autoincrement())
+  deviceSn    String    @map("device_sn")
+  commandType String    @map("command_type")
+  commandData String    @map("command_data")
+  status      String    @default("pending")           // pending, sent, completed, failed
+  result      String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  sentAt      DateTime? @map("sent_at")
+  completedAt DateTime? @map("completed_at")
+
+  device      Device?   @relation(fields: [deviceSn], references: [serialNumber])
+
+  @@index([deviceSn, status])
+  @@map("command_queue")
+}
