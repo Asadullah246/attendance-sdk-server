@@ -26,11 +26,6 @@ export function saveDeviceData(
   body: unknown,
   sn?: string
 ): void {
-  // Ignore continuous polling endpoints to prevent log spam
-  if (endpoint === 'getrequest') {
-    return;
-  }
-
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const devicePrefix = sn ? `${sn}_` : '';

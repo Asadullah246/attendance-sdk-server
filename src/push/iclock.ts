@@ -8,11 +8,6 @@ const prisma = getPrisma();
 
 // --- ALL DEVICE REQUESTS CONSOLE LOGGER ---
 router.use((req: Request, res: Response, next: Function) => {
-  // Ignore getrequest to prevent log spam
-  if (req.originalUrl.includes('/getrequest')) {
-    return next();
-  }
-
   console.log(`\n======================================================`);
   console.log(`📡 [DEVICE REQUEST] ${req.method} ${req.originalUrl}`);
   console.log(`======================================================`);
@@ -205,11 +200,11 @@ router.get('/getrequest', async (req: Request, res: Response) => {
   const sn = req.query.SN as string;
   
   // Make it extremely visible in the terminal
-  // console.log(`\n======================================================`);
-  // console.log(`📡 [DEVICE PING] GET /iclock/getrequest from SN: ${sn || 'UNKNOWN'}`);
-  // console.log(`======================================================\n`);
+  console.log(`\n======================================================`);
+  console.log(`📡 [DEVICE PING] GET /iclock/getrequest from SN: ${sn || 'UNKNOWN'}`);
+  console.log(`======================================================\n`);
 
-  // logger.info(`[Push] Polling for commands from ${sn}`);
+  logger.info(`[Push] Polling for commands from ${sn}`);
   // saveDeviceData('getrequest', 'GET', req.query, null, sn);
 
   if (sn) {
