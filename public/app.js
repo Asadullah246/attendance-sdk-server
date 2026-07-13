@@ -221,13 +221,19 @@ async function fetchUsers() {
             json.data.forEach(user => {
                 const privilegeStr = user.privilege === 14 ? 'SuperAdmin' : 'Normal User';
                 
+                let statusBadge = `<span class="badge" style="background: rgba(255,255,255,0.1)">Unknown</span>`;
+                if (user.status === 'active') statusBadge = `<span class="badge badge-online">🟢 Active</span>`;
+                if (user.status === 'pending_add') statusBadge = `<span class="badge" style="background: rgba(234,179,8,0.2); color: #eab308; border: 1px solid rgba(234,179,8,0.3)">🟡 Pending Add</span>`;
+                if (user.status === 'pending_delete') statusBadge = `<span class="badge" style="background: rgba(239,68,68,0.2); color: #ef4444; border: 1px solid rgba(239,68,68,0.3)">🔴 Pending Delete</span>`;
+                
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td><strong>${user.uid}</strong></td>
                     <td>${user.name}</td>
                     <td>${privilegeStr}</td>
+                    <td>${statusBadge}</td>
                     <td>
-                        <button class="btn btn-danger action-delete-user" data-uid="${user.uid}">Delete</button>
+                        <button class="btn btn-danger action-delete-user" data-uid="${user.uid}" ${user.status === 'pending_delete' ? 'disabled' : ''}>Delete</button>
                     </td>
                 `;
                 tbody.appendChild(tr);

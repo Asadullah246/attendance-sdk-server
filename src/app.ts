@@ -7,7 +7,6 @@ import logger from './utils/logger';
 import { successResponse, formatUptime } from './utils/helpers';
 
 // Import routers
-import testRoutes from './api/routes/test';
 import commandRoutes from './api/routes/commands';
 import deviceRoutes from './api/routes/devices';
 import attendanceRoutes from './api/routes/attendance';
@@ -57,9 +56,6 @@ app.get('/health', (_req: Request, res: Response) => {
 app.use('/dashboard', express.static(path.join(process.cwd(), 'public')));
 
 // ─── API Routes ──────────────────────────────────────────────────────
-// Test routes (Phase 1 — Pull connectivity testing)
-app.use('/api/v1/test', testRoutes);
-
 // Phase 4 Data APIs
 app.use('/api/v1/devices', deviceRoutes);
 app.use('/api/v1/attendance', attendanceRoutes);

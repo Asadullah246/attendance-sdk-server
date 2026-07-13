@@ -1,7 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { getPrisma } from '../../database/prisma';
-import { successResponse, errorResponse } from '../../utils/helpers';
-import logger from '../../utils/logger';
+import { successResponse } from '../../utils/helpers';
 
 const router = Router();
 const prisma = getPrisma();

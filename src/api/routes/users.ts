@@ -2,7 +2,6 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { getPrisma } from '../../database/prisma';
 import { CommandService } from '../../services/commandService';
 import { successResponse, errorResponse } from '../../utils/helpers';
-import logger from '../../utils/logger';
 
 const router = Router();
 const prisma = getPrisma();
@@ -41,10 +40,12 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
       uid: parseInt(uid, 10),
       name,
       privilege: privilege ? parseInt(privilege, 10) : 0,
+      status: 'pending_add',
     },
     update: {
       name,
       privilege: privilege ? parseInt(privilege, 10) : 0,
+      status: 'pending_add',
     }
   });
 
@@ -73,10 +74,11 @@ router.delete('/:uid', asyncHandler(async (req: Request, res: Response) => {
 
   const numericUid = parseInt(uid, 10);
 
-  // 1. Delete from database (ignore if not found)
+  // 1. Update status to pending_delete (ignore if not found)
   try {
-    await prisma.user.delete({
-      where: { id: numericUid }
+    await prisma.user.update({
+      where: { id: numericUid },
+      data: { status: 'pending_delete' }
     });
   } catch (e) {
     // Record might not exist, which is fine

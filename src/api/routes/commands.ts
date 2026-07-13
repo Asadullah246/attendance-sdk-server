@@ -1,7 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { CommandService } from '../../services/commandService';
 import { successResponse, errorResponse } from '../../utils/helpers';
-import logger from '../../utils/logger';
 
 const router = Router();
 

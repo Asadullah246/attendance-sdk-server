@@ -45,6 +45,7 @@ model User {
   cardNumber  String?   @map("card_number")
   privilege   Int       @default(0)                   // 0=User, 14=SuperAdmin
   password    String?
+  status      String    @default("active")            // pending_add, active, pending_delete
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
@@ -120,4 +121,21 @@ model CommandQueue {
 
   @@index([deviceSn, status])
   @@map("command_queue")
+}
+
+// ─── WebhookQueue ────────────────────────────────────────────────────
+// Queue for outbound webhook deliveries to the Main App
+model WebhookQueue {
+  id          Int       @id @default(autoincrement())
+  url         String
+  eventType   String    @map("event_type")
+  payload     String    // Stored as JSON string
+  status      String    @default("pending")           // pending, success, failed
+  retryCount  Int       @default(0) @map("retry_count")
+  lastError   String?   @map("last_error")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("webhook_queue")
 }
