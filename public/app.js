@@ -11,6 +11,15 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchCommands();
         showToast('Data refreshed');
     });
+
+    // Modal logic
+    const createUserModal = document.getElementById('create-user-modal');
+    document.getElementById('btn-open-create-user').addEventListener('click', () => {
+        createUserModal.classList.remove('hidden');
+    });
+    document.getElementById('btn-close-create-user').addEventListener('click', () => {
+        createUserModal.classList.add('hidden');
+    });
     
     // Tab switching logic
     const navItems = document.querySelectorAll('.nav-item');
@@ -75,7 +84,20 @@ async function fetchDevices() {
                 }
             }
 
+            // Populate Device SN Dropdown in "Create User" modal
+            const deviceSelect = document.getElementById('user-device-sn');
+            if (deviceSelect) {
+                deviceSelect.innerHTML = '';
+            }
+
             json.data.forEach(device => {
+                if (deviceSelect) {
+                    const opt = document.createElement('option');
+                    opt.value = device.serialNumber;
+                    opt.textContent = `${device.serialNumber} ${device.isOnline ? '(Online)' : '(Offline)'}`;
+                    deviceSelect.appendChild(opt);
+                }
+
                 const isOnline = device.isOnline;
                 const statusBadge = `<span class="badge ${isOnline ? 'badge-online' : 'badge-offline'}">${isOnline ? 'Online' : 'Offline'}</span>`;
                 const lastActivity = new Date(device.lastActivity).toLocaleString();
@@ -88,15 +110,28 @@ async function fetchDevices() {
                     <td>${lastActivity}</td>
                     <td>
                         <div class="action-group">
-                            <button class="btn btn-secondary" onclick="sendCommand('${device.serialNumber}', 'unlock')">Unlock Door</button>
-                            <button class="btn btn-danger" onclick="sendCommand('${device.serialNumber}', 'reboot')">Reboot</button>
+                            <button class="btn btn-secondary action-cmd" data-sn="${device.serialNumber}" data-cmd="unlock">Unlock Door</button>
+                            <button class="btn btn-danger action-cmd" data-sn="${device.serialNumber}" data-cmd="reboot">Reboot</button>
                         </div>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
+
+            // Attach event listeners to command buttons
+            document.querySelectorAll('.action-cmd').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const sn = e.target.getAttribute('data-sn');
+                    const cmd = e.target.getAttribute('data-cmd');
+                    sendCommand(sn, cmd);
+                });
+            });
         } else {
             tbody.innerHTML = '<tr><td colspan="5" class="text-center">No devices found. Connect a device via ADMS.</td></tr>';
+            const deviceSelect = document.getElementById('user-device-sn');
+            if (deviceSelect) {
+                deviceSelect.innerHTML = '<option value="">No devices found</option>';
+            }
         }
     } catch (e) {
         console.error(e);
@@ -192,10 +227,18 @@ async function fetchUsers() {
                     <td>${user.name}</td>
                     <td>${privilegeStr}</td>
                     <td>
-                        <button class="btn btn-danger" onclick="deleteUser(${user.uid})">Delete</button>
+                        <button class="btn btn-danger action-delete-user" data-uid="${user.uid}">Delete</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
+            });
+
+            // Attach event listeners to delete buttons
+            document.querySelectorAll('.action-delete-user').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const uid = parseInt(e.target.getAttribute('data-uid'), 10);
+                    deleteUser(uid);
+                });
             });
         } else {
             tbody.innerHTML = '<tr><td colspan="4" class="text-center">No users found. Create one above!</td></tr>';
