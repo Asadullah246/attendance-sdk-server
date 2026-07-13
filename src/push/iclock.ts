@@ -181,8 +181,101 @@ router.post('/cdata', async (req: Request, res: Response) => {
           
           // Trigger Webhook
           WebhookService.queueWebhook('user_synced_from_device', { deviceSn: sn, user });
+
+          // Broadcast to ALL OTHER connected devices
+          const allDevices = await prisma.device.findMany({ where: { isOnline: true } });
+          for (const device of allDevices) {
+            if (device.serialNumber !== sn) {
+              const cmdData = `DATA UPDATE USERINFO PIN=${uid} Name=${name} Pri=${user.privilege}`;
+              await prisma.commandQueue.create({
+                data: {
+                  deviceSn: device.serialNumber,
+                  commandType: 'UPDATE_USERINFO',
+                  commandData: cmdData,
+                  status: 'pending',
+                }
+              });
+            }
+          }
         } catch (e) {
           logger.error(`[Push] Failed to sync user`, { error: (e as Error).message });
+          dbHasError = true;
+        }
+      }
+    }
+  }
+
+  // Parse FP (Fingerprint) or FACE (Face) or BIODATA
+  if ((table === 'FP' || table === 'FACE' || table === 'BIODATA') && typeof rawBody === 'string') {
+    const lines = rawBody.split('\n').filter(l => l.trim() !== '');
+    for (const line of lines) {
+      // Key-Value format: PIN=1001 FID=0 Size=250 Valid=1 TMP=...
+      const parts = line.split('\t');
+      let uidStr = '';
+      let fidStr = '0';
+      let sizeStr = '0';
+      let validStr = '1';
+      let tmp = '';
+      
+      parts.forEach(p => {
+        if (p.startsWith('PIN=')) uidStr = p.replace('PIN=', '');
+        if (p.startsWith('FID=')) fidStr = p.replace('FID=', '');
+        if (p.startsWith('Size=')) sizeStr = p.replace('Size=', '');
+        if (p.startsWith('Valid=')) validStr = p.replace('Valid=', '');
+        if (p.startsWith('TMP=')) tmp = p.replace('TMP=', '');
+      });
+
+      const uid = parseInt(uidStr, 10);
+      if (!isNaN(uid) && tmp) {
+        try {
+          const typeCode = table === 'FACE' ? 15 : 1; // 1 = Finger, 15 = Face
+
+          // @ts-ignore - Prisma client not fully regenerated due to file lock, but DB schema is updated
+          await prisma.biometricTemplate.upsert({
+            where: {
+              uid_type_fingerId: {
+                uid: uid,
+                type: typeCode,
+                fingerId: parseInt(fidStr, 10),
+              }
+            },
+            create: {
+              uid: uid,
+              type: typeCode,
+              fingerId: parseInt(fidStr, 10),
+              size: parseInt(sizeStr, 10) || 0,
+              valid: parseInt(validStr, 10) || 1,
+              template: tmp,
+              deviceSn: sn,
+            },
+            update: {
+              size: parseInt(sizeStr, 10) || 0,
+              valid: parseInt(validStr, 10) || 1,
+              template: tmp,
+              deviceSn: sn,
+            }
+          });
+          logger.info(`[Push] Saved biometric (${table}) for UID: ${uid}`);
+
+          // Broadcast to ALL OTHER connected devices
+          const allDevices = await prisma.device.findMany({ where: { isOnline: true } });
+          for (const device of allDevices) {
+            if (device.serialNumber !== sn) {
+              const cmdPrefix = table === 'FACE' ? 'DATA UPDATE FACE' : 'DATA UPDATE FINGER';
+              const cmdData = `${cmdPrefix} PIN=${uidStr} FID=${fidStr} Size=${sizeStr} Valid=${validStr} TMP=${tmp}`;
+              
+              await prisma.commandQueue.create({
+                data: {
+                  deviceSn: device.serialNumber,
+                  commandType: 'UPDATE_BIOMETRIC',
+                  commandData: cmdData,
+                  status: 'pending',
+                }
+              });
+            }
+          }
+        } catch (e) {
+          logger.error(`[Push] Failed to save biometric`, { error: (e as Error).message });
           dbHasError = true;
         }
       }

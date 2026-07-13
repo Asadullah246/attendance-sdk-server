@@ -39,7 +39,7 @@ model Device {
 // Users/Employees synced to ZKTeco devices
 model User {
   id          Int       @id @default(autoincrement())
-  uid         Int                                     // ZKTeco internal user ID
+  uid         Int       @unique                       // ZKTeco internal user ID
   name        String
   employeeId  String?   @map("employee_id")           // Your system's employee ID
   cardNumber  String?   @map("card_number")
@@ -50,7 +50,8 @@ model User {
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  userDevices UserDevice[]
+  userDevices         UserDevice[]
+  biometricTemplates  BiometricTemplate[]
 
   @@map("users")
 }
@@ -67,6 +68,27 @@ model UserDevice {
 
   @@id([userId, deviceId])
   @@map("user_devices")
+}
+
+// ─── BiometricTemplate ──────────────────────────────────────────────────
+// Stores Fingerprint, Face, and Card data for users
+model BiometricTemplate {
+  id          Int       @id @default(autoincrement())
+  uid         Int       @map("uid")
+  type        Int       // 1=Fingerprint, 15=Face, etc.
+  fingerId    Int?      @map("finger_id") // 0-9 for fingers, 0 for face
+  size        Int?
+  valid       Int       @default(1)
+  template    String    @db.Text
+  deviceSn    String?   @map("device_sn") // Device where it was enrolled
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user        User      @relation(fields: [uid], references: [uid], onDelete: Cascade)
+
+  @@unique([uid, type, fingerId])
+  @@index([uid])
+  @@map("biometric_templates")
 }
 
 // ─── AttendanceLog ───────────────────────────────────────────────────

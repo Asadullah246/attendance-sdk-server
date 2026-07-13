@@ -294,7 +294,7 @@ async function fetchUsers() {
             document.querySelectorAll('.action-delete-user').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const uid = parseInt(e.target.getAttribute('data-uid'), 10);
-                    deleteUser(uid);
+                    deleteUser(uid, e.target);
                 });
             });
         } else {
@@ -337,27 +337,32 @@ document.getElementById('create-user-form').addEventListener('submit', async (e)
     }
 });
 
-async function deleteUser(uid) {
-    const deviceSn = prompt("Enter the Device SN to remove this user from:");
-    if (!deviceSn) return;
-    
-    if (!confirm(`Delete user ${uid} from server and device ${deviceSn}?`)) return;
+async function deleteUser(uid, btnElement) {
+    // Provide visual feedback instead of a blocking confirm dialog
+    const originalText = btnElement.textContent;
+    btnElement.textContent = "Deleting...";
+    btnElement.disabled = true;
 
     try {
-        const response = await fetchWithAuth(`/api/v1/users/${uid}?deviceSn=${deviceSn}`, { 
+        // We no longer send deviceSn, so the backend will delete from ALL devices
+        const response = await fetchWithAuth(`/api/v1/users/${uid}`, { 
             method: 'DELETE'
         });
         const json = await response.json();
         
         if (json.success) {
-            showToast('User deleted and sync queued!');
+            showToast('User deleted from all devices!');
             fetchUsers();
         } else {
             showToast(`Error: ${json.message}`);
+            btnElement.textContent = originalText;
+            btnElement.disabled = false;
         }
     } catch (e) {
         console.error(e);
         showToast('Failed to delete user');
+        btnElement.textContent = originalText;
+        btnElement.disabled = false;
     }
 }
 

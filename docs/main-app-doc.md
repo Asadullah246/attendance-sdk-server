@@ -19,7 +19,7 @@ Call this API from the Main Application when HR creates a new employee. This wil
   "uid": "1001",              // (String/Number) Unique Employee ID
   "name": "John Doe",         // (String) Employee Name
   "privilege": 0,             // (Number) 0 for Normal User, 14 for SuperAdmin
-  "deviceSn": "VGU6251900138" // (String) The exact Serial Number of the physical device
+  "deviceSn": "VGU6251900138" // (String) OPTIONAL: The Serial Number of a specific device. If omitted, the user will be synced to ALL devices.
 }
 ```
 
@@ -46,12 +46,12 @@ Call this API from the Main Application when HR creates a new employee. This wil
 ## 2. Delete User from Device
 Call this API when an employee is terminated. It changes their status to `pending_delete` and tells the device to wipe their face/fingerprint data.
 
-- **Endpoint:** `DELETE /api/v1/users/:uid?deviceSn={SERIAL_NUMBER}`
+- **Endpoint:** `DELETE /api/v1/users/:uid?deviceSn={SERIAL_NUMBER}` (Optional)
 - **Headers:** `x-api-key: <YOUR_API_KEY>` (From your SDK Server `.env`)
 
 ### Request Parameters:
 - **`uid`** (URL Param): The Employee's UID (e.g. `/api/v1/users/1001`)
-- **`deviceSn`** (Query Param): The serial number of the device to delete them from (e.g. `?deviceSn=VGU6251900138`)
+- **`deviceSn`** (Query Param): *Optional*. The serial number of the device to delete them from. **If omitted, the user will be deleted from ALL connected physical devices in the system.**
 
 ### Success Response (200 OK):
 ```json
