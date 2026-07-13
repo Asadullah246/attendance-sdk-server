@@ -1,15 +1,53 @@
-document.addEventListener('DOMContentLoaded', () => {
-    fetchDevices();
-    fetchAttendance();
-    fetchUsers();
-    fetchCommands();
+let API_KEY = localStorage.getItem('zk_api_key') || '';
 
-    document.getElementById('refresh-btn').addEventListener('click', () => {
-        fetchDevices();
-        fetchAttendance();
-        fetchUsers();
-        fetchCommands();
-        showToast('Data refreshed');
+document.addEventListener('DOMContentLoaded', () => {
+    const loginOverlay = document.getElementById('login-overlay');
+    
+    // Check if we are logged in
+    if (!API_KEY) {
+        loginOverlay.classList.remove('hidden');
+    } else {
+        loginOverlay.classList.add('hidden');
+        initDashboard();
+    }
+
+    // Login Form Submission
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        const errorDiv = document.getElementById('login-error');
+        
+        errorDiv.style.display = 'none'; // hide error initially
+
+        try {
+            const res = await fetch('/api/v1/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const json = await res.json();
+            
+            if (json.success && json.data.apiKey) {
+                API_KEY = json.data.apiKey;
+                localStorage.setItem('zk_api_key', API_KEY);
+                loginOverlay.classList.add('hidden');
+                showToast('Login successful!');
+                initDashboard();
+            } else {
+                errorDiv.textContent = json.message || 'Login failed';
+                errorDiv.style.display = 'block';
+            }
+        } catch (err) {
+            errorDiv.textContent = 'Error connecting to server';
+            errorDiv.style.display = 'block';
+        }
+    });
+
+    // Logout Button
+    document.getElementById('btn-logout').addEventListener('click', () => {
+        localStorage.removeItem('zk_api_key');
+        window.location.reload();
     });
 
     // Modal logic
@@ -55,9 +93,37 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+function initDashboard() {
+    fetchDevices();
+    fetchAttendance();
+    fetchUsers();
+    fetchCommands();
+
+    document.getElementById('refresh-btn').addEventListener('click', () => {
+        fetchDevices();
+        fetchAttendance();
+        fetchUsers();
+        fetchCommands();
+        showToast('Data refreshed');
+    });
+}
+
+// ─── API FETCH WRAPPER (Handles 401) ───
+async function fetchWithAuth(url, options = {}) {
+    if (!options.headers) options.headers = {};
+    options.headers['x-api-key'] = API_KEY;
+
+    const res = await fetch(url, options);
+    if (res.status === 401) {
+        localStorage.removeItem('zk_api_key');
+        window.location.reload();
+    }
+    return res;
+}
+
 async function fetchDevices() {
     try {
-        const response = await fetch('/api/v1/devices');
+        const response = await fetchWithAuth('/api/v1/devices');
         const json = await response.json();
         const tbody = document.getElementById('devices-tbody');
         
@@ -124,7 +190,7 @@ async function fetchDevices() {
 
 async function fetchAttendance() {
     try {
-        const response = await fetch('/api/v1/attendance?limit=5000');
+        const response = await fetchWithAuth('/api/v1/attendance?limit=5000');
         const json = await response.json();
         const tbody = document.getElementById('attendance-tbody');
         
@@ -156,7 +222,9 @@ async function sendCommand(sn, command) {
     if (!confirm(`Are you sure you want to ${command} device ${sn}?`)) return;
     
     try {
-        const response = await fetch(`/api/v1/commands/${command}/${sn}`, { method: 'POST' });
+        const response = await fetchWithAuth(`/api/v1/commands/${command}/${sn}`, { 
+            method: 'POST'
+        });
         const json = await response.json();
         
         if (json.success) {
@@ -195,7 +263,7 @@ function showToast(message) {
 // User Management
 async function fetchUsers() {
     try {
-        const response = await fetch('/api/v1/users');
+        const response = await fetchWithAuth('/api/v1/users');
         const json = await response.json();
         const tbody = document.getElementById('users-tbody');
         
@@ -246,9 +314,11 @@ document.getElementById('create-user-form').addEventListener('submit', async (e)
     const deviceSn = document.getElementById('user-device-sn').value;
 
     try {
-        const response = await fetch('/api/v1/users', {
+        const response = await fetchWithAuth('/api/v1/users', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify({ uid, name, privilege, deviceSn })
         });
         const json = await response.json();
@@ -274,7 +344,9 @@ async function deleteUser(uid) {
     if (!confirm(`Delete user ${uid} from server and device ${deviceSn}?`)) return;
 
     try {
-        const response = await fetch(`/api/v1/users/${uid}?deviceSn=${deviceSn}`, { method: 'DELETE' });
+        const response = await fetchWithAuth(`/api/v1/users/${uid}?deviceSn=${deviceSn}`, { 
+            method: 'DELETE'
+        });
         const json = await response.json();
         
         if (json.success) {
@@ -292,7 +364,7 @@ async function deleteUser(uid) {
 // Command Sync Logs
 async function fetchCommands() {
     try {
-        const response = await fetch('/api/v1/commands');
+        const response = await fetchWithAuth('/api/v1/commands');
         const json = await response.json();
         const tbody = document.getElementById('synclogs-tbody');
         

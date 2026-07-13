@@ -11,6 +11,7 @@ Call this API from the Main Application when HR creates a new employee. This wil
 
 - **Endpoint:** `POST /api/v1/users`
 - **Content-Type:** `application/json`
+- **Headers:** `x-api-key: <YOUR_API_KEY>` (From your SDK Server `.env`)
 
 ### Request Body:
 ```json
@@ -46,6 +47,7 @@ Call this API from the Main Application when HR creates a new employee. This wil
 Call this API when an employee is terminated. It changes their status to `pending_delete` and tells the device to wipe their face/fingerprint data.
 
 - **Endpoint:** `DELETE /api/v1/users/:uid?deviceSn={SERIAL_NUMBER}`
+- **Headers:** `x-api-key: <YOUR_API_KEY>` (From your SDK Server `.env`)
 
 ### Request Parameters:
 - **`uid`** (URL Param): The Employee's UID (e.g. `/api/v1/users/1001`)
@@ -69,11 +71,13 @@ Instead of the Main App constantly polling the SDK Server, the SDK Server will a
 
 If your Main App is offline, the SDK server will queue the webhook and retry every 15 seconds (up to 5 times).
 
-**Your Main App must expose an endpoint (e.g. `POST /api/webhooks/zkteco`) to receive these.**
+**Your Main App must expose an endpoint to receive these webhooks.**
+To configure this, simply set `MAIN_APP_WEBHOOK_URL` in your SDK Server's `.env` file!
 
 ### Headers Received by Main App:
 - `Content-Type: application/json`
 - `X-ZKTeco-Event: <event_type>` (Use this to know what data is arriving)
+- `x-webhook-secret: <YOUR_WEBHOOK_SECRET>` (Validate this matches your SDK Server's `.env` to ensure the webhook isn't forged by an attacker).
 
 ### Event Type 1: `attendance` (Employee Punched In/Out)
 Triggered instantly when an employee scans their face/fingerprint.

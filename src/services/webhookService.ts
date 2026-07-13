@@ -1,40 +1,32 @@
 import { getPrisma } from '../database/prisma';
 import logger from '../utils/logger';
+import config from '../config';
 
 const prisma = getPrisma();
 
 export class WebhookService {
   /**
-   * Queues a webhook payload for all active webhook subscriptions
+   * Queues a webhook payload for the Main Application
    */
   static async queueWebhook(eventType: string, payload: any) {
     try {
-      // Find all active webhooks that subscribe to this event (or '*')
-      const activeWebhooks = await prisma.webhook.findMany({
-        where: { isActive: true },
-      });
-
-      const targetWebhooks = activeWebhooks.filter(
-        wh => wh.events === '*' || wh.events.includes(eventType)
-      );
-
-      if (targetWebhooks.length === 0) {
-        return; // No webhooks care about this event
-      }
-
-      // Create a queue entry for each target webhook
-      for (const wh of targetWebhooks) {
-        await prisma.webhookQueue.create({
-          data: {
-            url: wh.url,
-            eventType,
-            payload: JSON.stringify(payload),
-            status: 'pending',
-          },
-        });
-      }
+      const webhookUrl = config.mainAppWebhookUrl;
       
-      logger.info(`[WebhookService] Queued ${eventType} event for ${targetWebhooks.length} endpoints`);
+      if (!webhookUrl) {
+        logger.warn(`[WebhookService] Skipping webhook ${eventType} because MAIN_APP_WEBHOOK_URL is not set in .env`);
+        return;
+      }
+
+      await prisma.webhookQueue.create({
+        data: {
+          url: webhookUrl,
+          eventType,
+          payload: JSON.stringify(payload),
+          status: 'pending',
+        },
+      });
+      
+      logger.info(`[WebhookService] Queued ${eventType} event for Main App`);
     } catch (error) {
       logger.error(`[WebhookService] Failed to queue webhook`, { error: (error as Error).message });
     }
@@ -66,6 +58,7 @@ export class WebhookService {
             headers: {
               'Content-Type': 'application/json',
               'X-ZKTeco-Event': item.eventType,
+              'x-webhook-secret': config.webhookSecret,
             },
             body: item.payload,
             // Timeout after 5 seconds to prevent hanging

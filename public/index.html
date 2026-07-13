@@ -25,6 +25,7 @@
             </nav>
             <div class="sidebar-footer">
                 <span class="status-indicator online"></span> Live Server
+                <button id="btn-logout" style="margin-top: 15px; width: 100%; padding: 8px; background: rgba(255,255,255,0.1); border: none; color: #fff; border-radius: 6px; cursor: pointer;">Logout</button>
             </div>
         </aside>
 
@@ -178,6 +179,28 @@
     <!-- Notification Toast -->
     <div id="toast" class="toast hidden">
         <span id="toast-msg"></span>
+    </div>
+
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="login-overlay">
+        <div class="login-box glass-panel">
+            <div class="logo" style="margin-bottom: 20px; text-align: center;">
+                <h2>ZK Admin Login</h2>
+                <p style="color: #a1a1aa; font-size: 0.9em; margin-top: 5px;">Enter your environment credentials</p>
+            </div>
+            <form id="login-form">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="login-email" required placeholder="admin@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" required placeholder="••••••••">
+                </div>
+                <div id="login-error" style="color: #ff3b30; text-align: center; margin-bottom: 15px; font-size: 0.9em; display: none;"></div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 10px;">Login to Dashboard</button>
+            </form>
+        </div>
     </div>
 
     <script src="app.js"></script>
