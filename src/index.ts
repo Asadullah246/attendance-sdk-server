@@ -2,6 +2,7 @@ import app from './app';
 import config from './config';
 import logger from './utils/logger';
 import { testConnection, disconnect } from './database/prisma';
+import { WebhookService } from './services/webhookService';
 
 async function startServer(): Promise<void> {
   logger.info('─────────────────────────────────────────');
@@ -19,9 +20,14 @@ async function startServer(): Promise<void> {
   const server = app.listen(config.port, '0.0.0.0', () => {
     logger.info(`🚀 Server running on http://0.0.0.0:${config.port}`);
     logger.info(`📋 Health check: http://0.0.0.0:${config.port}/health`);
-    logger.info(`🔌 Test device: http://0.0.0.0:${config.port}/api/v1/test/connect?ip=DEVICE_IP`);
     logger.info('─────────────────────────────────────────');
   });
+
+  // Start background workers
+  logger.info('🚀 Starting Webhook processing background worker (15s interval)');
+  setInterval(() => {
+    WebhookService.processWebhooks();
+  }, 15000);
 
   // ─── Graceful Shutdown ───────────────────────────────────────────
   const shutdown = async (signal: string): Promise<void> => {

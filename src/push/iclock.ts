@@ -2,29 +2,13 @@ import { Router, Request, Response } from 'express';
 import logger from '../utils/logger';
 import { saveDeviceData } from '../utils/dataLogger';
 import { getPrisma } from '../database/prisma';
+import { WebhookService } from '../services/webhookService';
 
 const router = Router();
 const prisma = getPrisma();
 
-// --- ALL DEVICE REQUESTS CONSOLE LOGGER ---
-router.use((req: Request, res: Response, next: Function) => {
-  console.log(`\n======================================================`);
-  console.log(`📡 [DEVICE REQUEST] ${req.method} ${req.originalUrl}`);
-  console.log(`======================================================`);
-  
-  if (Object.keys(req.query).length > 0) {
-    console.log(`🔍 [QUERY PARAMS]:`);
-    console.log(req.query);
-  }
-  
-  if (req.body && Object.keys(req.body).length > 0) {
-    console.log(`📦 [RAW BODY]:`);
-    console.log(typeof req.body === 'string' ? req.body : JSON.stringify(req.body, null, 2));
-  }
-  
-  console.log(`------------------------------------------------------\n`);
-  next();
-});
+// The noisy console logger has been removed for production. 
+// Use logger.debug if request inspection is needed.
 
 /**
  * Common response for ZKTeco ADMS push protocol.
@@ -85,9 +69,7 @@ router.post('/cdata', async (req: Request, res: Response) => {
   const table = req.query.table as string; // 'ATTLOG', 'USER', 'OPERLOG'
   const rawBody = req.body; // text/plain payload
 
-  logger.info(`[Push] Data Received from ${sn} for table ${table} ${res}`);
-  // logger.info("datra",JSON.stringify(res))
-  logger.info("rawBody",JSON.stringify(rawBody))
+  logger.info(`[Push] Data Received from ${sn} for table ${table}`);
   
   // Save exact payload for analysis
   saveDeviceData('cdata', 'POST', req.query, rawBody, sn);
@@ -99,6 +81,8 @@ router.post('/cdata', async (req: Request, res: Response) => {
       data: { isOnline: true, lastActivity: new Date() },
     }).catch(e => logger.warn(`[Push] Error updating activity for ${sn}`, { error: e.message }));
   }
+
+  let dbHasError = false;
 
   // Parse ATTLOG (Attendance Logs)
   if (table === 'ATTLOG' && typeof rawBody === 'string') {
@@ -114,18 +98,24 @@ router.post('/cdata', async (req: Request, res: Response) => {
 
         if (!isNaN(uid) && timestampStr) {
           try {
-            await prisma.attendanceLog.upsert({
+            // The device sends local time (BD time) without a timezone: '2026-07-13 12:17:51'
+            // We append +06:00 so the Node.js server correctly parses it as Bangladesh time, 
+            // even if the server is deployed in UTC (like AWS).
+            const bdTimeStr = timestampStr.replace(' ', 'T') + '+06:00';
+            const punchTimeDate = new Date(bdTimeStr);
+
+            const log = await prisma.attendanceLog.upsert({
               where: {
                 deviceSn_uid_punchTime: {
                   deviceSn: sn,
                   uid: uid,
-                  punchTime: new Date(timestampStr),
+                  punchTime: punchTimeDate,
                 }
               },
               create: {
                 deviceSn: sn,
                 uid: uid,
-                punchTime: new Date(timestampStr),
+                punchTime: punchTimeDate,
                 status: state,
                 verifyType: verifyType,
                 source: 'push',
@@ -134,8 +124,12 @@ router.post('/cdata', async (req: Request, res: Response) => {
               update: {} // Do nothing if it exists
             });
             logger.info(`[Push] Saved attendance for UID: ${uid} at ${timestampStr}`);
+            
+            // Trigger Webhook
+            WebhookService.queueWebhook('attendance', log);
           } catch (e) {
             logger.error(`[Push] Failed to save attendance`, { error: (e as Error).message });
+            dbHasError = true;
           }
         }
       }
@@ -169,24 +163,37 @@ router.post('/cdata', async (req: Request, res: Response) => {
       const uid = parseInt(uidStr, 10);
       if (!isNaN(uid)) {
         try {
-          await prisma.user.upsert({
+          const user = await prisma.user.upsert({
             where: { id: uid },
             create: {
               uid: uid,
               name: name || `User ${uid}`,
               privilege: isNaN(privilege) ? 0 : privilege,
+              status: 'active',
             },
             update: {
               name: name || `User ${uid}`,
               privilege: isNaN(privilege) ? 0 : privilege,
+              status: 'active',
             }
           });
           logger.info(`[Push] Synced user UID: ${uid}, Name: ${name}`);
+          
+          // Trigger Webhook
+          WebhookService.queueWebhook('user_synced_from_device', { deviceSn: sn, user });
         } catch (e) {
           logger.error(`[Push] Failed to sync user`, { error: (e as Error).message });
+          dbHasError = true;
         }
       }
     }
+  }
+
+  // If the database threw an error (e.g. unreachable), we MUST NOT return OK.
+  // Returning an error forces the device to retain the logs in memory and retry later!
+  if (dbHasError) {
+    logger.warn(`[Push] Returning HTTP 500 to device ${sn} due to DB errors. Device will retry later.`);
+    return res.status(500).send('ERROR\n');
   }
 
   sendADMSResponse(res, 'OK\n');
@@ -199,10 +206,7 @@ router.post('/cdata', async (req: Request, res: Response) => {
 router.get('/getrequest', async (req: Request, res: Response) => {
   const sn = req.query.SN as string;
   
-  // Make it extremely visible in the terminal
-  console.log(`\n======================================================`);
-  console.log(`📡 [DEVICE PING] GET /iclock/getrequest from SN: ${sn || 'UNKNOWN'}`);
-  console.log(`======================================================\n`);
+  logger.info(`[Push] Device Polling (getrequest) from SN: ${sn || 'UNKNOWN'}`);
 
   logger.info(`[Push] Polling for commands from ${sn}`);
   // saveDeviceData('getrequest', 'GET', req.query, null, sn);
@@ -273,7 +277,7 @@ router.post('/devicecmd', async (req: Request, res: Response) => {
       
       if (cmdId > 0) {
         try {
-          await prisma.commandQueue.update({
+          const cmd = await prisma.commandQueue.update({
             where: { id: cmdId },
             data: {
               status: returnCode === '0' ? 'completed' : 'failed',
@@ -281,6 +285,28 @@ router.post('/devicecmd', async (req: Request, res: Response) => {
               completedAt: new Date(),
             },
           });
+          WebhookService.queueWebhook('command_completed', cmd);
+          
+          // --- USER SYNC STATUS UPDATES ---
+          if (returnCode === '0' && cmd.commandData) {
+            if (cmd.commandData.startsWith('DATA UPDATE USERINFO')) {
+              // Extract PIN
+              const pinMatch = cmd.commandData.match(/PIN=(\d+)/);
+              if (pinMatch && pinMatch[1]) {
+                await prisma.user.updateMany({
+                  where: { uid: parseInt(pinMatch[1], 10) },
+                  data: { status: 'active' }
+                });
+              }
+            } else if (cmd.commandData.startsWith('DATA DELETE USERINFO')) {
+              const pinMatch = cmd.commandData.match(/PIN=(\d+)/);
+              if (pinMatch && pinMatch[1]) {
+                await prisma.user.deleteMany({
+                  where: { uid: parseInt(pinMatch[1], 10) }
+                });
+              }
+            }
+          }
         } catch (error) {
           logger.error(`[Push] Error updating command ${cmdId}`, { error: (error as Error).message });
         }
@@ -292,7 +318,7 @@ router.post('/devicecmd', async (req: Request, res: Response) => {
     const returnCode = rawBody.Return as string;
     if (cmdId > 0) {
       try {
-        await prisma.commandQueue.update({
+        const cmd = await prisma.commandQueue.update({
           where: { id: cmdId },
           data: {
             status: returnCode === '0' ? 'completed' : 'failed',
@@ -300,6 +326,28 @@ router.post('/devicecmd', async (req: Request, res: Response) => {
             completedAt: new Date(),
           },
         });
+        WebhookService.queueWebhook('command_completed', cmd);
+
+        // --- USER SYNC STATUS UPDATES ---
+        if (returnCode === '0' && cmd.commandData) {
+          if (cmd.commandData.startsWith('DATA UPDATE USERINFO')) {
+            // Extract PIN
+            const pinMatch = cmd.commandData.match(/PIN=(\d+)/);
+            if (pinMatch && pinMatch[1]) {
+              await prisma.user.updateMany({
+                where: { uid: parseInt(pinMatch[1], 10) },
+                data: { status: 'active' }
+              });
+            }
+          } else if (cmd.commandData.startsWith('DATA DELETE USERINFO')) {
+            const pinMatch = cmd.commandData.match(/PIN=(\d+)/);
+            if (pinMatch && pinMatch[1]) {
+              await prisma.user.deleteMany({
+                where: { uid: parseInt(pinMatch[1], 10) }
+              });
+            }
+          }
+        }
       } catch (error) {}
     }
   }

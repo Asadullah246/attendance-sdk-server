@@ -32,8 +32,7 @@
     "morgan": "^1.11.0",
     "node-cron": "^4.6.0",
     "prisma": "^6.19.3",
-    "winston": "^3.19.0",
-    "zkteco-js": "^1.7.2"
+    "winston": "^3.19.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
