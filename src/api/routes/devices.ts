@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { getPrisma } from '../../database/prisma';
 import { successResponse, errorResponse } from '../../utils/helpers';
 import logger from '../../utils/logger';
@@ -6,9 +6,10 @@ import logger from '../../utils/logger';
 const router = Router();
 const prisma = getPrisma();
 
-const asyncHandler = (fn: Function) => (req: Request, res: Response, next: Function) => {
-  Promise.resolve(fn(req, res, next)).catch(next);
-};
+const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => 
+  (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
 
 /**
  * GET /api/v1/devices
@@ -26,7 +27,7 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
  * Get details of a single device
  */
 router.get('/:sn', asyncHandler(async (req: Request, res: Response) => {
-  const { sn } = req.params;
+  const sn = req.params.sn as string;
   const device = await prisma.device.findUnique({
     where: { serialNumber: sn },
   });

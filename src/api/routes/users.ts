@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { getPrisma } from '../../database/prisma';
 import { CommandService } from '../../services/commandService';
 import { successResponse, errorResponse } from '../../utils/helpers';
@@ -7,9 +7,10 @@ import logger from '../../utils/logger';
 const router = Router();
 const prisma = getPrisma();
 
-const asyncHandler = (fn: Function) => (req: Request, res: Response, next: Function) => {
-  Promise.resolve(fn(req, res, next)).catch(next);
-};
+const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => 
+  (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
 
 /**
  * GET /api/v1/users
@@ -63,7 +64,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
  * Deletes a user from the database AND removes them from the specified device
  */
 router.delete('/:uid', asyncHandler(async (req: Request, res: Response) => {
-  const { uid } = req.params;
+  const uid = req.params.uid as string;
   const { deviceSn } = req.query; // Send deviceSn as a query param for DELETE
 
   if (!deviceSn) {
