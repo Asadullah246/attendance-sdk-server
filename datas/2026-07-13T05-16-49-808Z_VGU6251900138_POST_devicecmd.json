@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-07-13T05:16:49.809Z",
+  "method": "POST",
+  "endpoint": "devicecmd",
+  "sn": "VGU6251900138",
+  "query": {
+    "SN": "VGU6251900138"
+  }
+}

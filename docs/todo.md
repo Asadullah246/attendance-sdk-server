@@ -123,36 +123,31 @@
 
 ---
 
-## Phase 3: Pull SDK — Query & Command Devices
+## Phase 3: ADMS Device Control & APIs
 
-**Goal:** Server can actively fetch data from devices and send commands.
+**Goal:** Provide REST APIs to queue commands for the devices to execute via ADMS.
 
-### 3.1 Device Management via Pull
-- [ ] Expand `src/pull/operations.js`:
-  - `getUsers(ip)` — fetch all enrolled users from device
-  - `getAttendances(ip)` — fetch all attendance logs from device
-  - `getTemplates(ip)` — fetch biometric templates
-  - `setUser(ip, userData)` — add/update user on device
-  - `deleteUser(ip, uid)` — remove user from device
-  - `setTime(ip, datetime)` — sync device clock
-  - `reboot(ip)` — restart device
-  - `clearAttendanceLog(ip)` — clear logs on device
+### 3.1 Command Service
+- [x] Create `src/services/commandService.ts`
+  - `queueReboot(sn)` — send REBOOT command
+  - `queueUnlock(sn)` — send AC_UNLOCK command
+  - `queueClearLogs(sn)` — send CLEAR LOG command
+  - `queueSyncTime(sn)` — send time sync command
 
-### 3.2 Test Routes for Pull Operations
-- [ ] `GET /api/v1/test/users?ip=x.x.x.x` — list users on device
-- [ ] `GET /api/v1/test/attendance?ip=x.x.x.x` — list attendance on device
-- [ ] `POST /api/v1/test/add-user?ip=x.x.x.x` — add test user to device
-- [ ] `DELETE /api/v1/test/delete-user?ip=x.x.x.x&uid=1` — remove test user
-- [ ] `GET /api/v1/test/templates?ip=x.x.x.x` — list templates
-- [ ] `GET /api/v1/test/device-info?ip=x.x.x.x` — full device details
-- [ ] **TEST:** Run each operation against actual device
-- [ ] **DOCUMENT:** Log actual data shapes for users, attendance, templates
+### 3.2 Command REST APIs
+- [x] Create `src/api/routes/commands.ts`
+- [x] `POST /api/v1/commands/reboot/:sn`
+- [x] `POST /api/v1/commands/unlock/:sn`
+- [x] `POST /api/v1/commands/clear-log/:sn`
+- [x] `POST /api/v1/commands/sync-time/:sn`
+- [x] `GET /api/v1/commands/status/:id` — Check if command succeeded
+- [x] Mount router in `app.ts`
 
 ### 3.3 Add Remaining DB Models
-- [ ] Add `User` model to Prisma schema
-- [ ] Add `UserDevice` model (many-to-many relation)
-- [ ] Add `Webhook` model
-- [ ] Run migration
+- [ ] Add `User` model to Prisma schema ✅ (Done in Phase 1)
+- [ ] Add `UserDevice` model (many-to-many relation) ✅ (Done in Phase 1)
+- [ ] Add `Webhook` model ✅ (Done in Phase 1)
+- [ ] Run migration ✅ (Done in Phase 1)
 
 ---
 

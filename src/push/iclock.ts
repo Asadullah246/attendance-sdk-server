@@ -65,7 +65,9 @@ router.post('/cdata', async (req: Request, res: Response) => {
   const table = req.query.table as string; // 'ATTLOG', 'USER', 'OPERLOG'
   const rawBody = req.body; // text/plain payload
 
-  logger.info(`[Push] Data Received from ${sn} for table ${table}`);
+  logger.info(`[Push] Data Received from ${sn} for table ${table} ${res}`);
+  // logger.info("datra",JSON.stringify(res))
+  logger.info("rawBody",JSON.stringify(rawBody))
   
   // Save exact payload for analysis
   saveDeviceData('cdata', 'POST', req.query, rawBody, sn);

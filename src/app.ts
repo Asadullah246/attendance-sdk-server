@@ -7,6 +7,7 @@ import { successResponse, formatUptime } from './utils/helpers';
 
 // Import routers
 import testRoutes from './api/routes/test';
+import commandRoutes from './api/routes/commands';
 import pushRouter from './push/iclock';
 
 const app = express();
@@ -49,8 +50,11 @@ app.get('/health', (_req: Request, res: Response) => {
 });
 
 // ─── API Routes ──────────────────────────────────────────────────────
-// Test routes (Phase 1 — device connectivity testing)
+// Test routes (Phase 1 — Pull connectivity testing)
 app.use('/api/v1/test', testRoutes);
+
+// Command routes (Phase 3 — Push Protocol commands)
+app.use('/api/v1/commands', commandRoutes);
 
 // ─── iClock Push Protocol Routes (Phase 2) ───────────────────────────
 // ADMS devices hardcode their push endpoints to start with /iclock
