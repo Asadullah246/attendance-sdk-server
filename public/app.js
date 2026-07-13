@@ -64,26 +64,6 @@ async function fetchDevices() {
         if (json.success && json.data.length > 0) {
             tbody.innerHTML = '';
             
-            // Update Global Status Badge based on the most recently active device
-            const latestDevice = json.data[0];
-            const globalBadge = document.getElementById('global-device-status');
-            if (globalBadge && latestDevice) {
-                const msSinceLastActivity = Date.now() - new Date(latestDevice.lastActivity).getTime();
-                if (msSinceLastActivity < 90000) { // 90 seconds tolerance
-                    globalBadge.className = 'status-badge online';
-                    globalBadge.style.background = 'rgba(52, 199, 89, 0.2)';
-                    globalBadge.style.color = '#34c759';
-                    globalBadge.style.borderColor = 'rgba(52, 199, 89, 0.4)';
-                    globalBadge.innerHTML = 'Device: 🟢 Active';
-                } else {
-                    globalBadge.className = 'status-badge offline';
-                    globalBadge.style.background = 'rgba(255, 59, 48, 0.2)';
-                    globalBadge.style.color = '#ff3b30';
-                    globalBadge.style.borderColor = 'rgba(255, 59, 48, 0.4)';
-                    globalBadge.innerHTML = 'Device: 🔴 Offline';
-                }
-            }
-
             // Populate Device SN Dropdown in "Create User" modal
             const deviceSelect = document.getElementById('user-device-sn');
             if (deviceSelect) {
@@ -98,8 +78,11 @@ async function fetchDevices() {
                     deviceSelect.appendChild(opt);
                 }
 
-                const isOnline = device.isOnline;
-                const statusBadge = `<span class="badge ${isOnline ? 'badge-online' : 'badge-offline'}">${isOnline ? 'Online' : 'Offline'}</span>`;
+                const lastActivityDate = new Date(device.lastActivity);
+                const msSinceLastActivity = Date.now() - lastActivityDate.getTime();
+                const isActuallyOnline = msSinceLastActivity < 90000; // ADMS pushes ping every 10-60s
+                
+                const statusBadge = `<span class="badge ${isActuallyOnline ? 'badge-online' : 'badge-offline'}">${isActuallyOnline ? '🟢 Online' : '🔴 Offline'}</span>`;
                 const lastActivity = new Date(device.lastActivity).toLocaleString();
                 
                 const tr = document.createElement('tr');
