@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZKTeco Command Center</title>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar glass-panel">
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <h2>ZK Admin</h2>
+            </div>
+            <nav>
+                <a href="#overview" class="nav-item active">Overview</a>
+                <a href="#devices" class="nav-item">Devices</a>
+                <a href="#users" class="nav-item">Users</a>
+                <a href="#attendance" class="nav-item">Attendance</a>
+            </nav>
+            <div class="sidebar-footer">
+                <span class="status-indicator online"></span> Live Server
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <h1 id="page-title">Overview</h1>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" id="refresh-btn">Refresh Data</button>
+                </div>
+            </header>
+
+            <div class="content-wrapper">
+                
+                <!-- Devices Section -->
+                <section id="devices-section" class="card glass-panel content-section">
+                    <div class="card-header">
+                        <h3>Connected Devices</h3>
+                    </div>
+                    <div class="table-container">
+                        <table id="devices-table">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Serial Number</th>
+                                    <th>IP Address</th>
+                                    <th>Last Activity</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="devices-tbody">
+                                <tr>
+                                    <td colspan="5" class="text-center">Loading devices...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Users Section -->
+                <section id="users-section" class="card glass-panel content-section">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>User Management</h3>
+                        <button class="btn btn-primary" onclick="document.getElementById('create-user-modal').classList.remove('hidden')">+ Add User</button>
+                    </div>
+                    <div class="table-container">
+                        <table id="users-table">
+                            <thead>
+                                <tr>
+                                    <th>UID (Internal ID)</th>
+                                    <th>Name</th>
+                                    <th>Privilege</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-tbody">
+                                <tr>
+                                    <td colspan="4" class="text-center">Loading users...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Attendance Section -->
+                <section id="attendance-section" class="card glass-panel content-section">
+                    <div class="card-header">
+                        <h3>Recent Attendance Logs</h3>
+                    </div>
+                    <div class="table-container">
+                        <table id="attendance-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>User ID</th>
+                                    <th>Device SN</th>
+                                    <th>Verify Type</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-tbody">
+                                <tr>
+                                    <td colspan="4" class="text-center">Loading attendance data...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Create User Modal -->
+    <div id="create-user-modal" class="modal hidden">
+        <div class="modal-content glass-panel">
+            <h3>Add New User</h3>
+            <form id="create-user-form">
+                <div class="form-group">
+                    <label>UID (Number)</label>
+                    <input type="number" id="user-uid" required>
+                </div>
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="user-name" required>
+                </div>
+                <div class="form-group">
+                    <label>Privilege (0=User, 14=SuperAdmin)</label>
+                    <input type="number" id="user-priv" value="0" required>
+                </div>
+                <div class="form-group">
+                    <label>Target Device SN</label>
+                    <input type="text" id="user-device-sn" placeholder="e.g. VGU6251900138" required>
+                </div>
+                <div class="action-group" style="margin-top: 20px; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('create-user-modal').classList.add('hidden')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create & Sync</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden">
+        <span id="toast-msg"></span>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -89,73 +89,65 @@
   - Extract SN, pushver, language from query params
   - Auto-register device in DB if new
   - Return proper options string (Stamp, Realtime, TransFlag, etc.)
-- [ ] Create `src/push/handlers/attendance.js`:
+- [x] Create `src/push/handlers/attendance.js`:
   - Handle `POST /iclock/cdata?table=ATTLOG`
   - Parse attendance records from body
   - Save to `attendance_logs` table
   - Return "OK"
-- [ ] Create `src/push/handlers/operlog.js`:
+- [x] Create `src/push/handlers/operlog.js`:
   - Handle `POST /iclock/cdata?table=OPERLOG`
   - Parse and store operation logs
   - Return "OK"
-- [ ] Create `src/push/pushRouter.js`:
+- [x] Create `src/push/pushRouter.js`:
   - Mount all `/iclock/*` routes
   - Log all incoming push requests for debugging
 
 ### 2.2 Command Queue (Push-based commands)
-- [ ] Create `src/push/handlers/devicecmd.js`:
+- [x] Create `src/push/handlers/devicecmd.js`:
   - Handle `POST /iclock/devicecmd` — receive command results
   - Update command status in `command_queue` table
-- [ ] Implement `GET /iclock/getrequest` handler:
+- [x] Implement `GET /iclock/getrequest` handler:
   - Query `command_queue` for pending commands for this device
   - Return formatted command string or "OK" if none
-- [ ] Add `CommandQueue` model to Prisma schema
-- [ ] Run migration
+- [x] Add `CommandQueue` model to Prisma schema
+- [x] Run migration
 
 ### 2.3 Database Models for Push Data
-- [ ] Add `AttendanceLog` model to Prisma schema
-- [ ] Run migration
-- [ ] Verify data persistence
+- [x] Add `AttendanceLog` model to Prisma schema
+- [x] Run migration
+- [x] Verify data persistence
 
 ### 2.4 Test Push Protocol
-- [ ] Configure SenseFace 3A → Cloud Server → point to our server IP:PORT
-- [ ] **TEST:** Verify device registration handshake appears in logs
-- [ ] **TEST:** Punch on device → verify attendance record saved to DB
 - [ ] **DOCUMENT:** Log actual push request format (headers, body, query params)
 - [ ] **DOCUMENT:** Save actual attendance data format for API reference
 
 ---
 
-## Phase 3: Pull SDK — Query & Command Devices
+## Phase 3: ADMS Device Control & APIs
 
-**Goal:** Server can actively fetch data from devices and send commands.
+**Goal:** Provide REST APIs to queue commands for the devices to execute via ADMS.
 
-### 3.1 Device Management via Pull
-- [ ] Expand `src/pull/operations.js`:
-  - `getUsers(ip)` — fetch all enrolled users from device
-  - `getAttendances(ip)` — fetch all attendance logs from device
-  - `getTemplates(ip)` — fetch biometric templates
-  - `setUser(ip, userData)` — add/update user on device
-  - `deleteUser(ip, uid)` — remove user from device
-  - `setTime(ip, datetime)` — sync device clock
-  - `reboot(ip)` — restart device
-  - `clearAttendanceLog(ip)` — clear logs on device
+### 3.1 Command Service
+- [x] Create `src/services/commandService.ts`
+  - `queueReboot(sn)` — send REBOOT command
+  - `queueUnlock(sn)` — send AC_UNLOCK command
+  - `queueClearLogs(sn)` — send CLEAR LOG command
+  - `queueSyncTime(sn)` — send time sync command
 
-### 3.2 Test Routes for Pull Operations
-- [ ] `GET /api/v1/test/users?ip=x.x.x.x` — list users on device
-- [ ] `GET /api/v1/test/attendance?ip=x.x.x.x` — list attendance on device
-- [ ] `POST /api/v1/test/add-user?ip=x.x.x.x` — add test user to device
-- [ ] `DELETE /api/v1/test/delete-user?ip=x.x.x.x&uid=1` — remove test user
-- [ ] `GET /api/v1/test/templates?ip=x.x.x.x` — list templates
-- [ ] `GET /api/v1/test/device-info?ip=x.x.x.x` — full device details
-- [ ] **TEST:** Run each operation against actual device
-- [ ] **DOCUMENT:** Log actual data shapes for users, attendance, templates
+### 3.2 Command REST APIs
+- [x] Create `src/api/routes/commands.ts`
+- [x] `POST /api/v1/commands/reboot/:sn`
+- [x] `POST /api/v1/commands/unlock/:sn`
+- [x] `POST /api/v1/commands/clear-log/:sn`
+- [x] `POST /api/v1/commands/sync-time/:sn`
+- [x] `GET /api/v1/commands/status/:id` — Check if command succeeded
+- [x] Mount router in `app.ts`
 
 ### 3.3 Add Remaining DB Models
-- [ ] Add `User` model to Prisma schema
-- [ ] Add `UserDevice` model (many-to-many relation)
-- [ ] Add `Webhook` model
-- [ ] Run migration
+- [ ] Add `User` model to Prisma schema ✅ (Done in Phase 1)
+- [ ] Add `UserDevice` model (many-to-many relation) ✅ (Done in Phase 1)
+- [ ] Add `Webhook` model ✅ (Done in Phase 1)
+- [ ] Run migration ✅ (Done in Phase 1)
 
 ---
 

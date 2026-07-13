@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-13T06:06:48.570Z",
+  "method": "POST",
+  "endpoint": "cdata",
+  "sn": "VGU6251900138",
+  "query": {
+    "SN": "VGU6251900138",
+    "table": "OPERLOG",
+    "OpStamp": "9999"
+  },
+  "body": "OPLOG 0\t0\t2026-07-13 13:17:20\t0\t0\t0\t0\nOPLOG 3\t0\t2026-07-13 13:17:26\t54\t0\t0\t0\nOPLOG 4\t1\t2026-07-13 13:39:27\t1\t0\t0\t0\nOPLOG 4\t1\t2026-07-13 13:42:58\t1\t0\t0\t0\nOPLOG 0\t0\t2026-07-13 13:44:54\t0\t0\t0\t0\nOPLOG 3\t0\t2026-07-13 13:45:00\t54\t0\t0\t0\nOPLOG 4\t1\t2026-07-13 13:45:04\t1\t0\t0\t0\nOPLOG 4\t1\t2026-07-13 13:52:49\t1\t0\t0\t0\nOPLOG 4\t1\t2026-07-13 13:58:28\t1\t0\t0\t0\n"
+}

@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-13T06:40:08.814Z",
+  "method": "POST",
+  "endpoint": "cdata",
+  "sn": "VGU6251900138",
+  "query": {
+    "SN": "VGU6251900138",
+    "table": "BIODATA",
+    "OpStamp": "9999"
+  },
+  "body": "BIODATA Pin=1\tNo=0\tIndex=0\tValid=1\tDuress=0\tType=9\tMajorVer=40\tMinorVer=1\tFormat=0\tTmp=apUBFjYCAABgIuonCQAoAQHv18pHAGJobX4kJSYnGSkqKxwtLi8wMTIzNDc2Nzg5Ojs8PYZmNMvZ/DrUcYzWyuXLDsYrJigtLJE+F883OZooBDYXDGwGGMOmxNbwENPFMeLow9QLSPTuHu7zJ8zxFRnK1H3+JABDU974JfirucL1zcDbzhfi8N7u0VDCFsIyERnN/wJIypMUkDve9Kclmu3nwsgf3SHU7Tg+EREN1LY3n/4VC92VWnqbsEBhgpVLSKCyg1O/ib+C55N1q7Sp5IBXhbZMSS202iRlmmNEhSebr2pitmM0nZOBlbQRF8Fm3qO6YkpshoaopV9SvVVyZ3Gjh4CnqnGzV5omaHxznXyZmJWXfKq2kUCBTrevlqxPvpjlGqy1abtgcqEvRFp8ULRgT79FZjxuOIcV2uPa1g16y5c10cTM28T5yxUjPDbsMT/SwhED7DbQCVcdCuk6CjsVFhP0//XRv/MOHgjCI+APAWAVBBc+WOACVBHk/jncFi4L+Tkn5/ySE7skGvKYMfrZqAvo9hyD9WU2I8MCLMMY+NDG8jk+ITLmEIk4Oco9FD7d9RYHXaKWZRKuW6+Xoay16qyedXWqqFmxt0JWeTlCUE9TSuVU2dDcN8p/ZlZAh9HBfkq3ZpcJj4obi2NeppJTorFCKHpNwb6biaobhBwxZvOlTLjZIpHeh0x2uGVTUGwCn7FFQUe1uHyOcXmStKzpqKG3vLyvTG1+Z5SG/59Qi1KUqAA=\n"
+}

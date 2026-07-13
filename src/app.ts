@@ -2,11 +2,17 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import path from 'path';
 import logger from './utils/logger';
 import { successResponse, formatUptime } from './utils/helpers';
 
 // Import routers
 import testRoutes from './api/routes/test';
+import commandRoutes from './api/routes/commands';
+import deviceRoutes from './api/routes/devices';
+import attendanceRoutes from './api/routes/attendance';
+import userRoutes from './api/routes/users';
+import pushRouter from './push/iclock';
 
 const app = express();
 
@@ -23,8 +29,8 @@ app.use(express.json());
 // Parse URL-encoded bodies (needed for iClock push protocol)
 app.use(express.urlencoded({ extended: true }));
 
-// Parse raw text bodies (iClock sends tab-separated plain text)
-app.use(express.text({ type: 'text/plain' }));
+// Parse raw text bodies (iClock sometimes sends missing or weird content types)
+app.use(express.text({ type: ['text/plain', 'application/unknown', '*/*'] }));
 
 // HTTP request logging via Morgan → Winston
 app.use(
@@ -47,13 +53,24 @@ app.get('/health', (_req: Request, res: Response) => {
   );
 });
 
+// ─── Static Dashboard ──────────────────────────────────────────────────
+app.use('/dashboard', express.static(path.join(process.cwd(), 'public')));
+
 // ─── API Routes ──────────────────────────────────────────────────────
-// Test routes (Phase 1 — device connectivity testing)
+// Test routes (Phase 1 — Pull connectivity testing)
 app.use('/api/v1/test', testRoutes);
 
-// ─── iClock Push Protocol Routes (Phase 2 — placeholder) ────────────
-// Will be added in Phase 2
-// app.use('/iclock', pushRouter);
+// Phase 4 Data APIs
+app.use('/api/v1/devices', deviceRoutes);
+app.use('/api/v1/attendance', attendanceRoutes);
+app.use('/api/v1/users', userRoutes);
+
+// Command routes (Phase 3 — Push Protocol commands)
+app.use('/api/v1/commands', commandRoutes);
+
+// ─── iClock Push Protocol Routes (Phase 2) ───────────────────────────
+// ADMS devices hardcode their push endpoints to start with /iclock
+app.use('/iclock', pushRouter);
 
 // ─── 404 Handler ─────────────────────────────────────────────────────
 app.use((req: Request, res: Response) => {

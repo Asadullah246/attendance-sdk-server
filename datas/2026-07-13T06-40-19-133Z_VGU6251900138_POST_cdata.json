@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-13T06:40:19.133Z",
+  "method": "POST",
+  "endpoint": "cdata",
+  "sn": "VGU6251900138",
+  "query": {
+    "SN": "VGU6251900138",
+    "table": "ATTLOG",
+    "Stamp": "9999"
+  },
+  "body": "1\t2026-07-13 14:40:17\t255\t15\t0\t0\t0\t0\t0\t0\t\n"
+}

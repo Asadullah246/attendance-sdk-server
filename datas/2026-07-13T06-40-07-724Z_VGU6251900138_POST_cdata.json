@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-13T06:40:07.724Z",
+  "method": "POST",
+  "endpoint": "cdata",
+  "sn": "VGU6251900138",
+  "query": {
+    "SN": "VGU6251900138",
+    "table": "OPERLOG",
+    "OpStamp": "9999"
+  },
+  "body": "USER PIN=1\tName=ad\tPri=14\tPasswd=\tCard=\tGrp=1\tTZ=0000000100000000\tVerify=-1\tViceCard=\tStartDatetime=0\tEndDatetime=0\n"
+}
