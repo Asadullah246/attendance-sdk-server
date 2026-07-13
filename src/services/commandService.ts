@@ -62,6 +62,25 @@ export class CommandService {
   }
 
   /**
+   * Adds or updates a user on the device
+   */
+  static async addUser(sn: string, uid: number, name: string, privilege: number = 0, password?: string) {
+    // Basic ADMS format: DATA UPDATE USERINFO PIN=1\tName=John\tPri=0
+    let commandStr = `DATA UPDATE USERINFO PIN=${uid}\tName=${name}\tPri=${privilege}`;
+    if (password) {
+      commandStr += `\tPass=${password}`;
+    }
+    return this.enqueue(sn, 'add_user', commandStr);
+  }
+
+  /**
+   * Deletes a user from the device
+   */
+  static async deleteUser(sn: string, uid: number) {
+    return this.enqueue(sn, 'delete_user', `DATA DELETE USERINFO PIN=${uid}`);
+  }
+
+  /**
    * Gets the status of a specific command
    */
   static async getCommandStatus(commandId: number) {

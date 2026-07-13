@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-07-13T06:06:43.891Z",
+  "method": "POST",
+  "endpoint": "cdata",
+  "sn": "VGU6251900138",
+  "query": {
+    "SN": "VGU6251900138",
+    "table": "options"
+  },
+  "body": "~DeviceName=SenseFace 3A,MAC=00:17:61:11:df:e4,TransactionCount=12,~MaxAttLogCount=15,UserCount=1,~MaxUserCount=60,PhotoFunOn=1,~MaxUserPhotoCount=6000,FingerFunOn=1,FPVersion=13,~MaxFingerCount=60,FPCount=1,FaceFunOn=1,FaceVersion=40,~MaxFaceCount=3000,FaceCount=0,FvFunOn=0,FvVersion=3,~MaxFvCount=10,FvCount=0,PvFunOn=0,PvVersion=12,~MaxPvCount=,PvCount=0,Language=69,IPAddress=192.168.0.210,~Platform=ZAM70_TFT,~OEMVendor=ZKTECO CO., LTD.,FWVersion=ZAM70-NF28VA-Ver3.0.15,PushVersion=Ver 3.0.4S-20240809,RegDeviceType=,VisilightFun=1,MultiBioDataSupport=0:1:0:0:0:0:0:0:0:1,MultiBioPhotoSupport=0:0:0:0:0:0:0:0:0:1,IRTempDetectionFunOn=,MaskDetectionFunOn=,UserPicURLFunOn=1,VisualIntercomFunOn=1,VideoTID=,QRCodeDecryptFunList=,VideoProtocol=8,IsSupportQRcode=0,QRCodeEnable=,SubcontractingUpgradeFunOn=1,wgRuleVer=,LivePvFunOn="
+}

@@ -6,6 +6,26 @@ import { getPrisma } from '../database/prisma';
 const router = Router();
 const prisma = getPrisma();
 
+// --- ALL DEVICE REQUESTS CONSOLE LOGGER ---
+router.use((req: Request, res: Response, next: Function) => {
+  console.log(`\n======================================================`);
+  console.log(`📡 [DEVICE REQUEST] ${req.method} ${req.originalUrl}`);
+  console.log(`======================================================`);
+  
+  if (Object.keys(req.query).length > 0) {
+    console.log(`🔍 [QUERY PARAMS]:`);
+    console.log(req.query);
+  }
+  
+  if (req.body && Object.keys(req.body).length > 0) {
+    console.log(`📦 [RAW BODY]:`);
+    console.log(typeof req.body === 'string' ? req.body : JSON.stringify(req.body, null, 2));
+  }
+  
+  console.log(`------------------------------------------------------\n`);
+  next();
+});
+
 /**
  * Common response for ZKTeco ADMS push protocol.
  * The device expects a plain text "OK" to acknowledge receipt.
@@ -80,8 +100,94 @@ router.post('/cdata', async (req: Request, res: Response) => {
     }).catch(e => logger.warn(`[Push] Error updating activity for ${sn}`, { error: e.message }));
   }
 
-  // TODO: Add parser for ATTLOG strings to save to database once we analyze the JSON outputs
-  // For now, we save raw text to the datas/ folder for analysis as requested by the user
+  // Parse ATTLOG (Attendance Logs)
+  if (table === 'ATTLOG' && typeof rawBody === 'string') {
+    const lines = rawBody.split('\n').filter(l => l.trim() !== '');
+    for (const line of lines) {
+      // Example format: 1\t2026-07-13 12:17:51\t255\t1\t0\t0\t0\t0\t0\t0\t
+      const parts = line.split('\t');
+      if (parts.length >= 2) {
+        const uid = parseInt(parts[0], 10);
+        const timestampStr = parts[1]; // YYYY-MM-DD HH:MM:SS
+        const state = parts.length > 2 ? parseInt(parts[2], 10) : null;
+        const verifyType = parts.length > 3 ? parseInt(parts[3], 10) : null;
+
+        if (!isNaN(uid) && timestampStr) {
+          try {
+            await prisma.attendanceLog.upsert({
+              where: {
+                deviceSn_uid_punchTime: {
+                  deviceSn: sn,
+                  uid: uid,
+                  punchTime: new Date(timestampStr),
+                }
+              },
+              create: {
+                deviceSn: sn,
+                uid: uid,
+                punchTime: new Date(timestampStr),
+                status: state,
+                verifyType: verifyType,
+                source: 'push',
+                rawData: line,
+              },
+              update: {} // Do nothing if it exists
+            });
+            logger.info(`[Push] Saved attendance for UID: ${uid} at ${timestampStr}`);
+          } catch (e) {
+            logger.error(`[Push] Failed to save attendance`, { error: (e as Error).message });
+          }
+        }
+      }
+    }
+  }
+  // Parse USERINFO (User Sync from device)
+  if ((table === 'USER' || table === 'USERINFO') && typeof rawBody === 'string') {
+    const lines = rawBody.split('\n').filter(l => l.trim() !== '');
+    for (const line of lines) {
+      // Could be TSV like: PIN\tName\tPri\tPass\tCard...
+      // Or Key-Value like: PIN=1\tName=John...
+      const parts = line.split('\t');
+      let uidStr = '';
+      let name = '';
+      let privilege = 0;
+
+      if (line.includes('PIN=')) {
+        // Key-Value format
+        parts.forEach(p => {
+          if (p.startsWith('PIN=')) uidStr = p.replace('PIN=', '');
+          if (p.startsWith('Name=')) name = p.replace('Name=', '');
+          if (p.startsWith('Pri=')) privilege = parseInt(p.replace('Pri=', ''), 10);
+        });
+      } else if (parts.length >= 2) {
+        // TSV format
+        uidStr = parts[0];
+        name = parts[1];
+        privilege = parts.length > 2 ? parseInt(parts[2], 10) : 0;
+      }
+
+      const uid = parseInt(uidStr, 10);
+      if (!isNaN(uid)) {
+        try {
+          await prisma.user.upsert({
+            where: { id: uid },
+            create: {
+              uid: uid,
+              name: name || `User ${uid}`,
+              privilege: isNaN(privilege) ? 0 : privilege,
+            },
+            update: {
+              name: name || `User ${uid}`,
+              privilege: isNaN(privilege) ? 0 : privilege,
+            }
+          });
+          logger.info(`[Push] Synced user UID: ${uid}, Name: ${name}`);
+        } catch (e) {
+          logger.error(`[Push] Failed to sync user`, { error: (e as Error).message });
+        }
+      }
+    }
+  }
 
   sendADMSResponse(res, 'OK\n');
 });
@@ -93,6 +199,11 @@ router.post('/cdata', async (req: Request, res: Response) => {
 router.get('/getrequest', async (req: Request, res: Response) => {
   const sn = req.query.SN as string;
   
+  // Make it extremely visible in the terminal
+  console.log(`\n======================================================`);
+  console.log(`📡 [DEVICE PING] GET /iclock/getrequest from SN: ${sn || 'UNKNOWN'}`);
+  console.log(`======================================================\n`);
+
   logger.info(`[Push] Polling for commands from ${sn}`);
   saveDeviceData('getrequest', 'GET', req.query, null, sn);
 
@@ -153,7 +264,6 @@ router.post('/devicecmd', async (req: Request, res: Response) => {
   }
 
   // Parse result (ID=1&Return=0)
-  // E.g., body is "ID=10&Return=0&CMD=Unlock\n"
   if (typeof rawBody === 'string') {
     const lines = rawBody.split('\n').filter(l => l.trim() !== '');
     for (const line of lines) {
@@ -175,6 +285,22 @@ router.post('/devicecmd', async (req: Request, res: Response) => {
           logger.error(`[Push] Error updating command ${cmdId}`, { error: (error as Error).message });
         }
       }
+    }
+  } else if (typeof rawBody === 'object' && rawBody !== null && rawBody.ID) {
+    // Handled by urlencoded parser
+    const cmdId = parseInt(rawBody.ID as string, 10);
+    const returnCode = rawBody.Return as string;
+    if (cmdId > 0) {
+      try {
+        await prisma.commandQueue.update({
+          where: { id: cmdId },
+          data: {
+            status: returnCode === '0' ? 'completed' : 'failed',
+            result: returnCode,
+            completedAt: new Date(),
+          },
+        });
+      } catch (error) {}
     }
   }
 
