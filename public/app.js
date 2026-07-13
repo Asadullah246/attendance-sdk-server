@@ -200,7 +200,7 @@ document.getElementById('create-user-form').addEventListener('submit', async (e)
         
         if (json.success) {
             showToast('User created and sync queued!');
-            document.getElementById('create-user-modal').style.display = 'none';
+            document.getElementById('create-user-modal').classList.add('hidden');
             document.getElementById('create-user-form').reset();
             fetchUsers();
         } else {

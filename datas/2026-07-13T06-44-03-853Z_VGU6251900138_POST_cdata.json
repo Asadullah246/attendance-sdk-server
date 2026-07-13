@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-13T06:44:03.853Z",
+  "method": "POST",
+  "endpoint": "cdata",
+  "sn": "VGU6251900138",
+  "query": {
+    "SN": "VGU6251900138",
+    "table": "OPERLOG",
+    "OpStamp": "9999"
+  },
+  "body": "OPLOG 4\t1\t2026-07-13 14:44:02\t1\t0\t0\t0\n"
+}

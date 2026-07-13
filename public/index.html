@@ -67,7 +67,7 @@
                 <section id="users-section" class="card glass-panel content-section">
                     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <h3>User Management</h3>
-                        <button class="btn btn-primary" onclick="document.getElementById('create-user-modal').style.display='flex'">+ Add User</button>
+                        <button class="btn btn-primary" onclick="document.getElementById('create-user-modal').classList.remove('hidden')">+ Add User</button>
                     </div>
                     <div class="table-container">
                         <table id="users-table">
@@ -138,7 +138,7 @@
                     <input type="text" id="user-device-sn" placeholder="e.g. VGU6251900138" required>
                 </div>
                 <div class="action-group" style="margin-top: 20px; justify-content: flex-end;">
-                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('create-user-modal').style.display='none'">Cancel</button>
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('create-user-modal').classList.add('hidden')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Create & Sync</button>
                 </div>
             </form>
