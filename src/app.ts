@@ -11,7 +11,9 @@ import commandRoutes from './api/routes/commands';
 import deviceRoutes from './api/routes/devices';
 import attendanceRoutes from './api/routes/attendance';
 import userRoutes from './api/routes/users';
+import authRoutes from './api/routes/auth';
 import pushRouter from './push/iclock';
+import { requireApiKey } from './api/middleware/auth';
 
 const app = express();
 
@@ -56,6 +58,12 @@ app.get('/health', (_req: Request, res: Response) => {
 app.use('/dashboard', express.static(path.join(process.cwd(), 'public')));
 
 // ─── API Routes ──────────────────────────────────────────────────────
+// Unprotected APIs (Authentication)
+app.use('/api/v1/auth', authRoutes);
+
+// Protected APIs for the Main Application
+app.use('/api/v1', requireApiKey); // Apply authentication to all subsequent /api/v1 routes
+
 // Phase 4 Data APIs
 app.use('/api/v1/devices', deviceRoutes);
 app.use('/api/v1/attendance', attendanceRoutes);
