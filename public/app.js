@@ -141,7 +141,7 @@ async function fetchDevices() {
 
 async function fetchAttendance() {
     try {
-        const response = await fetch('/api/v1/attendance?limit=10');
+        const response = await fetch('/api/v1/attendance?limit=5000');
         const json = await response.json();
         const tbody = document.getElementById('attendance-tbody');
         
