@@ -28,11 +28,14 @@ Call this API from the Main Application when HR creates a new employee. This wil
   "success": true,
   "message": "User John Doe created and command queued for VGU6251900138",
   "data": {
-    "id": 1001,
-    "uid": 1001,
-    "name": "John Doe",
-    "privilege": 0,
-    "status": "pending_add"
+    "user": {
+      "id": 1001,
+      "uid": 1001,
+      "name": "John Doe",
+      "privilege": 0,
+      "status": "pending_add"
+    },
+    "commandId": 12 // SAVE THIS ID! You will need it to map the webhook later.
   }
 }
 ```
@@ -53,7 +56,9 @@ Call this API when an employee is terminated. It changes their status to `pendin
 {
   "success": true,
   "message": "User 1001 deleted and removal command queued for VGU6251900138",
-  "data": null
+  "data": {
+    "commandId": 13 // SAVE THIS ID!
+  }
 }
 ```
 
@@ -90,9 +95,11 @@ Triggered instantly when an employee scans their face/fingerprint.
 ### Event Type 2: `command_completed` (Sync Confirmation)
 Triggered when the device confirms it successfully executed your Create or Delete command.
 
+**How to map this back to your Main App:** Match the `id` field in this webhook to the `commandId` you received in the `200 OK` response when you originally called the Create/Delete API!
+
 ```json
 {
-  "id": 12,
+  "id": 12,  // <--- This matches the commandId from the API response
   "deviceSn": "VGU6251900138",
   "commandData": "DATA UPDATE USERINFO PIN=1001 Name=John Pri=0",
   "status": "completed",
@@ -101,8 +108,8 @@ Triggered when the device confirms it successfully executed your Create or Delet
 ```
 *(Result "0" means success. This means the user is now physically active on the device).*
 
-### Event Type 3: `user_synced_from_device` (Manual Creation)
-Triggered if a manager manually creates a new employee directly on the touchscreen of the physical device.
+### Event Type 3: `user_synced_from_device` (Manual Creation / Update)
+Triggered if a manager manually creates a new employee, **OR** updates an existing employee (like re-scanning their face or changing their name/privilege) directly on the touchscreen of the physical device.
 
 ```json
 {

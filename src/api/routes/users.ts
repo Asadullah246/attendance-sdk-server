@@ -50,14 +50,14 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
   });
 
   // 2. Queue command to device
-  await CommandService.addUser(
+  const cmdResult = await CommandService.addUser(
     deviceSn, 
     user.uid, 
     user.name, 
     user.privilege
   );
 
-  res.json(successResponse(user, `User ${user.name} created and command queued for ${deviceSn}`));
+  res.json(successResponse({ user, commandId: cmdResult.commandId }, `User ${user.name} created and command queued for ${deviceSn}`));
 }));
 
 /**
@@ -85,9 +85,9 @@ router.delete('/:uid', asyncHandler(async (req: Request, res: Response) => {
   }
 
   // 2. Queue delete command to device
-  await CommandService.deleteUser(deviceSn as string, numericUid);
+  const cmdResult = await CommandService.deleteUser(deviceSn as string, numericUid);
 
-  res.json(successResponse(null, `User ${numericUid} deleted and removal command queued for ${deviceSn}`));
+  res.json(successResponse({ commandId: cmdResult.commandId }, `User ${numericUid} deleted and removal command queued for ${deviceSn}`));
 }));
 
 export default router;
