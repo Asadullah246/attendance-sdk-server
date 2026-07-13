@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-13T04:20:37.965Z",
+  "timestamp": "2026-07-13T04:55:17.999Z",
   "method": "POST",
   "endpoint": "cdata",
   "sn": "VGU6251900138",
@@ -8,5 +8,5 @@
     "table": "ATTLOG",
     "Stamp": "9999"
   },
-  "body": "1\t2026-07-13 12:17:51\t255\t1\t0\t0\t0\t0\t0\t0\t\n"
+  "body": "1\t2026-07-13 12:55:12\t255\t1\t0\t0\t0\t0\t0\t0\t\n"
 }

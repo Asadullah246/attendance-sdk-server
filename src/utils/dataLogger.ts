@@ -26,6 +26,11 @@ export function saveDeviceData(
   body: unknown,
   sn?: string
 ): void {
+  // Ignore continuous polling endpoints to prevent log spam
+  if (endpoint === 'getrequest') {
+    return;
+  }
+
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const devicePrefix = sn ? `${sn}_` : '';
@@ -43,7 +48,9 @@ export function saveDeviceData(
     };
 
     fs.writeFileSync(filePath, JSON.stringify(dataToSave, null, 2), 'utf-8');
-    logger.debug(`Saved device data to ${filename}`);
+    const logMessage = `[DataLogger] 💾 Saved API hit: ${method} /iclock/${endpoint} from ${sn || 'Unknown Device'} -> ${filename}`;
+    logger.info(logMessage);
+    console.log(logMessage);
   } catch (error) {
     logger.error('Failed to save device data to datas folder', {
       error: (error as Error).message,
