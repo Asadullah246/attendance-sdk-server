@@ -7,25 +7,8 @@ import { WebhookService } from '../services/webhookService';
 const router = Router();
 const prisma = getPrisma();
 
-// --- ALL DEVICE REQUESTS CONSOLE LOGGER ---
-router.use((req: Request, res: Response, next: Function) => {
-  console.log(`\n======================================================`);
-  console.log(`📡 [DEVICE REQUEST] ${req.method} ${req.originalUrl}`);
-  console.log(`======================================================`);
-  
-  if (Object.keys(req.query).length > 0) {
-    console.log(`🔍 [QUERY PARAMS]:`);
-    console.log(req.query);
-  }
-  
-  if (req.body && Object.keys(req.body).length > 0) {
-    console.log(`📦 [RAW BODY]:`);
-    console.log(typeof req.body === 'string' ? req.body : JSON.stringify(req.body, null, 2));
-  }
-  
-  console.log(`------------------------------------------------------\n`);
-  next();
-});
+// The noisy console logger has been removed for production. 
+// Use logger.debug if request inspection is needed.
 
 /**
  * Common response for ZKTeco ADMS push protocol.
@@ -86,9 +69,7 @@ router.post('/cdata', async (req: Request, res: Response) => {
   const table = req.query.table as string; // 'ATTLOG', 'USER', 'OPERLOG'
   const rawBody = req.body; // text/plain payload
 
-  logger.info(`[Push] Data Received from ${sn} for table ${table} ${res}`);
-  // logger.info("datra",JSON.stringify(res))
-  logger.info("rawBody",JSON.stringify(rawBody))
+  logger.info(`[Push] Data Received from ${sn} for table ${table}`);
   
   // Save exact payload for analysis
   saveDeviceData('cdata', 'POST', req.query, rawBody, sn);
@@ -225,10 +206,7 @@ router.post('/cdata', async (req: Request, res: Response) => {
 router.get('/getrequest', async (req: Request, res: Response) => {
   const sn = req.query.SN as string;
   
-  // Make it extremely visible in the terminal
-  console.log(`\n======================================================`);
-  console.log(`📡 [DEVICE PING] GET /iclock/getrequest from SN: ${sn || 'UNKNOWN'}`);
-  console.log(`======================================================\n`);
+  logger.info(`[Push] Device Polling (getrequest) from SN: ${sn || 'UNKNOWN'}`);
 
   logger.info(`[Push] Polling for commands from ${sn}`);
   // saveDeviceData('getrequest', 'GET', req.query, null, sn);

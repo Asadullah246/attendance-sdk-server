@@ -20,7 +20,6 @@ async function startServer(): Promise<void> {
   const server = app.listen(config.port, '0.0.0.0', () => {
     logger.info(`🚀 Server running on http://0.0.0.0:${config.port}`);
     logger.info(`📋 Health check: http://0.0.0.0:${config.port}/health`);
-    logger.info(`🔌 Test device: http://0.0.0.0:${config.port}/api/v1/test/connect?ip=DEVICE_IP`);
     logger.info('─────────────────────────────────────────');
   });
 
