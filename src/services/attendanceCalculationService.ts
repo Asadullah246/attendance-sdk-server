@@ -26,38 +26,10 @@ export class AttendanceCalculationService {
     timetable: any,
     rawLogs: any[]
   ) {
-    const sDate = new Date(schedule.scheduleDate);
-
-    // Build absolute windows
-    const checkInStart = this.offsetToAbsoluteTime(sDate, timetable.checkInStartOffset);
-    const checkInEnd = this.offsetToAbsoluteTime(sDate, timetable.checkInEndOffset);
-    const checkOutStart = this.offsetToAbsoluteTime(sDate, timetable.checkOutStartOffset);
-    const checkOutEnd = this.offsetToAbsoluteTime(sDate, timetable.checkOutEndOffset);
-    const shiftStart = this.offsetToAbsoluteTime(sDate, timetable.shiftStartOffset);
-    const shiftEnd = this.offsetToAbsoluteTime(sDate, timetable.shiftEndOffset);
-
-    // Classify punches
-    const checkInCandidates = [];
-    const checkOutCandidates = [];
-    const middlePunches = [];
-    const outsidePunches = [];
-
-    for (const log of rawLogs) {
-      const pTime = log.punchTime.getTime();
-      if (pTime >= checkInStart.getTime() && pTime <= checkInEnd.getTime()) {
-        checkInCandidates.push(log);
-      } else if (pTime >= checkOutStart.getTime() && pTime <= checkOutEnd.getTime()) {
-        checkOutCandidates.push(log);
-      } else if (pTime > checkInEnd.getTime() && pTime < checkOutStart.getTime()) {
-        middlePunches.push(log);
-      } else {
-        outsidePunches.push(log);
-      }
-    }
-
-    // Select actual punches
-    const actualCheckIn = checkInCandidates.length > 0 ? checkInCandidates[0].punchTime : null;
-    const actualCheckOut = checkOutCandidates.length > 0 ? checkOutCandidates[checkOutCandidates.length - 1].punchTime : null;
+    const [year, month, day] = schedule.scheduleDate.toISOString().split('T')[0].split('-');
+    const localMidnight = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), 0, 0, 0, 0);
+    const shiftStart = this.offsetToAbsoluteTime(localMidnight, timetable.shiftStartOffset);
+    const shiftEnd = this.offsetToAbsoluteTime(localMidnight, timetable.shiftEndOffset);
 
     let status = 'PRESENT';
     let anomalyNotes = [];
@@ -67,37 +39,46 @@ export class AttendanceCalculationService {
     let overtimeMinutes = 0;
     const breakMinutes = timetable.breakMinutes || 0;
 
-    // Detect anomalies
-    if (!actualCheckIn && !actualCheckOut) {
-      if (rawLogs.length > 0) {
-        status = 'EXCEPTION';
-        anomalyNotes.push('Punches exist but outside all valid windows');
+    if (rawLogs.length === 0) {
+      return {
+        actualCheckIn: null, actualCheckOut: null, workingMinutes: 0,
+        lateMinutes: 0, earlyLeaveMinutes: 0, overtimeMinutes: 0, breakMinutes: 0,
+        middlePunchCount: 0, status: 'ABSENT', anomalyNotes: null
+      };
+    }
+
+    if (rawLogs.length % 2 !== 0) {
+      status = 'MISSING_PUNCH';
+      anomalyNotes.push(`Odd number of punches (${rawLogs.length}). Admin review required.`);
+    }
+
+    let actualCheckIn = rawLogs[0].punchTime;
+    let actualCheckOut = rawLogs.length > 1 ? rawLogs[rawLogs.length - 1].punchTime : null;
+
+    // Process sequential pairs
+    const pairsCount = Math.floor(rawLogs.length / 2);
+    for (let i = 0; i < pairsCount * 2; i += 2) {
+      const inPunch = rawLogs[i].punchTime.getTime();
+      const outPunch = rawLogs[i+1].punchTime.getTime();
+      const durationMins = Math.floor((outPunch - inPunch) / 60000);
+      
+      if (durationMins >= 480) { // 8 hours continuous
+        if (status === 'PRESENT') status = 'EXCEPTION';
+        anomalyNotes.push(`Continuous segment > 8 hours (${durationMins}m).`);
       }
-    } else if (actualCheckIn && !actualCheckOut) {
-      status = 'MISSING_PUNCH';
-      anomalyNotes.push('Missing check-out punch within window');
-    } else if (!actualCheckIn && actualCheckOut) {
-      status = 'MISSING_PUNCH';
-      anomalyNotes.push('Missing check-in punch within window');
+      
+      workingMinutes += durationMins;
     }
 
-    // Odd middle punch check
-    if (middlePunches.length % 2 !== 0) {
-      status = 'MISSING_PUNCH';
-      anomalyNotes.push(`Odd middle punch count (${middlePunches.length}) - missing paired punch`);
-    }
-
-    // Calculate time if both check-in and check-out exist
-    if (actualCheckIn && actualCheckOut) {
-      const grossMinutes = Math.floor((actualCheckOut.getTime() - actualCheckIn.getTime()) / 60000);
-      workingMinutes = Math.max(0, grossMinutes - breakMinutes);
-
+    if (actualCheckIn) {
       const lateness = Math.floor((actualCheckIn.getTime() - shiftStart.getTime()) / 60000);
       if (lateness > timetable.graceMinutes) {
         lateMinutes = lateness;
         if (status === 'PRESENT') status = 'LATE';
       }
+    }
 
+    if (actualCheckOut) {
       const earlyLeave = Math.floor((shiftEnd.getTime() - actualCheckOut.getTime()) / 60000);
       if (earlyLeave > 0) {
         earlyLeaveMinutes = earlyLeave;
@@ -118,7 +99,7 @@ export class AttendanceCalculationService {
       earlyLeaveMinutes,
       overtimeMinutes,
       breakMinutes,
-      middlePunchCount: middlePunches.length,
+      middlePunchCount: rawLogs.length > 2 ? rawLogs.length - 2 : 0,
       status,
       anomalyNotes: anomalyNotes.length > 0 ? anomalyNotes.join('; ') : null
     };
@@ -128,8 +109,9 @@ export class AttendanceCalculationService {
    * Main entry point to run calculation for a specific date.
    */
   static async calculateForDate(dateStr: string) {
-    const targetDate = new Date(dateStr);
-    targetDate.setHours(0, 0, 0, 0);
+    // Parse as local midnight to correctly match DB schedules
+    const [year, month, day] = dateStr.split('-');
+    const targetDate = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), 0, 0, 0, 0);
 
     logger.info(`[AttendanceCalculationService] Starting calculation for date: ${dateStr}`);
 
@@ -143,11 +125,16 @@ export class AttendanceCalculationService {
 
     for (const schedule of schedules) {
       try {
-        const sDate = new Date(schedule.scheduleDate);
+        const [sYear, sMonth, sDay] = schedule.scheduleDate.toISOString().split('T')[0].split('-');
+        const localMidnight = new Date(parseInt(sYear, 10), parseInt(sMonth, 10) - 1, parseInt(sDay, 10), 0, 0, 0, 0);
+
         // Build an overall window from checkInStart to checkOutEnd for DB query
-        const windowStart = this.offsetToAbsoluteTime(sDate, schedule.timetable.checkInStartOffset);
-        // We add some buffer to the checkOutEnd to capture outside punches as well
-        const windowEnd = this.offsetToAbsoluteTime(sDate, schedule.timetable.checkOutEndOffset + 1440); // +24 hours for safety
+        const windowStart = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkInStartOffset);
+        // We add 4 hours buffer to the checkOutEnd to capture outside punches instead of a full 24h which could overlap with next shift
+        const windowEnd = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkOutEndOffset + 240);
+
+        logger.info(`[DEBUG] scheduleDate: ${schedule.scheduleDate.toISOString()}, localMidnight: ${localMidnight.toISOString()}`);
+        logger.info(`[DEBUG] windowStart: ${windowStart.toISOString()}, windowEnd: ${windowEnd.toISOString()}`);
 
         // Fetch raw logs
         const rawLogs = await prisma.attendanceLog.findMany({
@@ -246,8 +233,9 @@ export class AttendanceCalculationService {
    * Identifies employees who were scheduled but had no punches, and marks them ABSENT.
    */
   static async markAbsentees(dateStr: string) {
-    const targetDate = new Date(dateStr);
-    targetDate.setHours(0, 0, 0, 0);
+    // Parse as local midnight to correctly match DB schedules
+    const [year, month, day] = dateStr.split('-');
+    const targetDate = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), 0, 0, 0, 0);
 
     // Fetch schedules
     const schedules = await prisma.employeeSchedule.findMany({

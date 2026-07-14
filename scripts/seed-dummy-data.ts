@@ -30,27 +30,37 @@ async function main() {
     where: { uid: { in: UIDs } }
   });
   
-  // Cleanup old dummy shifts
-  await prisma.shiftTimetable.deleteMany({
+  // 2. Create or Update the Shift
+  console.log('Creating Standard Dummy Shift...');
+  let shift = await prisma.shiftTimetable.findFirst({
     where: { name: 'Standard Dummy Shift' }
   });
 
-  // 2. Create the Shift
-  console.log('Creating Standard Dummy Shift...');
-  const shift = await prisma.shiftTimetable.create({
-    data: {
+  const shiftData = {
       name: 'Standard Dummy Shift',
-      shiftStartOffset: 9 * 60, // 09:00
-      shiftEndOffset: 17 * 60, // 17:00
-      checkInStartOffset: 7 * 60, // 07:00
-      checkInEndOffset: 11 * 60, // 11:00
-      checkOutStartOffset: 15 * 60, // 15:00
-      checkOutEndOffset: 22 * 60, // 22:00
-      graceMinutes: 15,
-      overtimeThresholdMinutes: 30,
-      breakMinutes: 0
-    }
-  });
+      checkInStartOffset: 7 * 60, // 7am
+      shiftStartOffset: 8 * 60,   // 8am
+      shiftEndOffset: 17 * 60,    // 5pm
+      checkOutEndOffset: 22 * 60, // 10pm
+      breakMinutes: 60,
+      graceMinutes: 20,
+      overtimeThresholdMinutes: 60,
+      
+      // Add missing fields
+      checkInEndOffset: 10 * 60,
+      checkOutStartOffset: 16 * 60,
+  };
+
+  if (shift) {
+    shift = await prisma.shiftTimetable.update({
+      where: { id: shift.id },
+      data: shiftData
+    });
+  } else {
+    shift = await prisma.shiftTimetable.create({
+      data: shiftData
+    });
+  }
 
   // 3. Create Users
   console.log('Creating Test Personas...');

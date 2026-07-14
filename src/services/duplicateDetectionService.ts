@@ -57,9 +57,8 @@ export class DuplicateDetectionService {
         const isDuplicate = lastValidTime !== 0 && (punchTimeMs - lastValidTime) <= thresholdMs;
 
         if (isDuplicate) {
-          // Update only if it wasn't already marked
           if (!log.isDuplicate) {
-            await prisma.attendanceLog.update({
+            await prisma.attendanceLog.updateMany({
               where: { id: log.id },
               data: { isDuplicate: true }
             });
@@ -68,7 +67,7 @@ export class DuplicateDetectionService {
         } else {
           // It's valid. Make sure it's not marked as duplicate incorrectly
           if (log.isDuplicate) {
-            await prisma.attendanceLog.update({
+            await prisma.attendanceLog.updateMany({
               where: { id: log.id },
               data: { isDuplicate: false }
             });
