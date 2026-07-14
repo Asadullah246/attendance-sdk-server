@@ -31,6 +31,8 @@ export const ScheduleIdParamSchema = z.object({
   id: z.string().openapi({ description: 'Schedule ID', example: '1' })
 });
 
+import { ShiftSchema } from './shift.dto';
+
 export const ScheduleSchema = z.object({
   id: z.number().int().openapi({ example: 1 }),
   employeeId: z.string().openapi({ example: 'EMP1001' }),
@@ -38,7 +40,8 @@ export const ScheduleSchema = z.object({
   timetableId: z.number().int().openapi({ example: 1 }),
   scheduleDate: z.string().openapi({ example: '2023-10-25T00:00:00.000Z' }),
   createdAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' }),
-  updatedAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' })
+  updatedAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' }),
+  timetable: ShiftSchema.optional()
 }).openapi('EmployeeSchedule');
 
 export const BulkScheduleResultSchema = z.object({

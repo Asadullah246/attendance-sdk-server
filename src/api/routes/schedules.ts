@@ -9,6 +9,22 @@ import {
   ScheduleIdParamSchema 
 } from '../dtos/schedule.dto';
 import { z } from 'zod';
+import { mapShiftResponse } from './shifts';
+
+// Helper to clean schedule response and format timetable
+function mapScheduleResponse(schedule: any) {
+  if (!schedule) return null;
+  return {
+    id: schedule.id,
+    employeeId: schedule.employeeId,
+    employeeDeviceUid: schedule.employeeDeviceUid,
+    timetableId: schedule.timetableId,
+    scheduleDate: schedule.scheduleDate,
+    createdAt: schedule.createdAt,
+    updatedAt: schedule.updatedAt,
+    timetable: schedule.timetable ? mapShiftResponse(schedule.timetable) : undefined
+  };
+}
 
 const router = Router();
 
@@ -30,7 +46,7 @@ router.get('/',
     };
 
     const schedules = await ScheduleService.getSchedules(filters);
-    res.json(successResponse(schedules, 'Schedules fetched successfully'));
+    res.json(successResponse(schedules.map(mapScheduleResponse), 'Schedules fetched successfully'));
   })
 );
 
@@ -41,7 +57,7 @@ router.post('/',
 
     try {
       const schedule = await ScheduleService.assignSchedule(data);
-      res.json(successResponse(schedule, 'Schedule assigned successfully'));
+      res.json(successResponse(mapScheduleResponse(schedule), 'Schedule assigned successfully'));
     } catch (error) {
       res.status(400).json(errorResponse((error as Error).message, 400));
     }

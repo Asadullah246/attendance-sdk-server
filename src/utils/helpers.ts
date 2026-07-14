@@ -71,3 +71,24 @@ export function isValidIP(ip: string): boolean {
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * Convert HH:mm string to minutes since midnight
+ */
+export function timeStringToMinutes(timeStr: string): number {
+  if (!/^\d{2}:\d{2}$/.test(timeStr)) {
+    throw new Error(`Invalid time format. Expected HH:mm, got ${timeStr}`);
+  }
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+/**
+ * Convert minutes since midnight to HH:mm string
+ */
+export function minutesToTimeString(minutes: number): string {
+  const normalized = ((minutes % 1440) + 1440) % 1440; // Handle negatives or > 24h
+  const h = Math.floor(normalized / 60).toString().padStart(2, '0');
+  const m = (Math.floor(normalized % 60)).toString().padStart(2, '0');
+  return `${h}:${m}`;
+}

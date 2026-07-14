@@ -112,17 +112,7 @@ export class ShiftService {
 
     if (!shift) return null;
 
-    return {
-      ...shift,
-      displayTimes: {
-        shiftStart: this.offsetToTimeString(shift.shiftStartOffset),
-        shiftEnd: this.offsetToTimeString(shift.shiftEndOffset),
-        checkInStart: this.offsetToTimeString(shift.checkInStartOffset),
-        checkInEnd: this.offsetToTimeString(shift.checkInEndOffset),
-        checkOutStart: this.offsetToTimeString(shift.checkOutStartOffset),
-        checkOutEnd: this.offsetToTimeString(shift.checkOutEndOffset),
-      }
-    };
+    return shift;
   }
 
   /**
@@ -134,12 +124,6 @@ export class ShiftService {
       orderBy: { createdAt: 'desc' }
     });
 
-    return shifts.map(shift => ({
-      ...shift,
-      displayTimes: {
-        shiftStart: this.offsetToTimeString(shift.shiftStartOffset),
-        shiftEnd: this.offsetToTimeString(shift.shiftEndOffset)
-      }
-    }));
+    return shifts;
   }
 }

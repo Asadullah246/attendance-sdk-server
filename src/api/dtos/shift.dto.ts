@@ -11,12 +11,12 @@ export const ShiftIdParamSchema = z.object({
 export const ShiftSchema = z.object({
   id: z.number().int().openapi({ example: 1 }),
   name: z.string().openapi({ example: 'Morning Shift' }),
-  shiftStartOffset: z.number().int().openapi({ example: 540 }),
-  shiftEndOffset: z.number().int().openapi({ example: 1020 }),
-  checkInStartOffset: z.number().int().openapi({ example: 420 }),
-  checkInEndOffset: z.number().int().openapi({ example: 660 }),
-  checkOutStartOffset: z.number().int().openapi({ example: 960 }),
-  checkOutEndOffset: z.number().int().openapi({ example: 1200 }),
+  shiftStartTime: z.string().openapi({ example: '09:00' }),
+  shiftEndTime: z.string().openapi({ example: '17:00' }),
+  checkInStartTime: z.string().openapi({ example: '07:00' }),
+  checkInEndTime: z.string().openapi({ example: '11:00' }),
+  checkOutStartTime: z.string().openapi({ example: '16:00' }),
+  checkOutEndTime: z.string().openapi({ example: '20:00' }),
   graceMinutes: z.number().int().openapi({ example: 15 }),
   overtimeThresholdMinutes: z.number().int().openapi({ example: 30 }),
   breakMinutes: z.number().int().openapi({ example: 0 }),
@@ -28,17 +28,28 @@ export const ShiftSchema = z.object({
 export const CreateShiftBodySchema = z.object({
   name: z.string().openapi({ example: 'Morning Shift' }),
   shiftStartTime: z.string().openapi({ example: '09:00' }),
-  shiftEndTime: z.string().openapi({ example: '18:00' }),
-  checkInStartOffset: z.number().int().openapi({ example: 420 }),
-  checkInEndOffset: z.number().int().openapi({ example: 600 }),
-  checkOutStartOffset: z.number().int().openapi({ example: 1020 }),
-  checkOutEndOffset: z.number().int().openapi({ example: 1200 }),
-  graceMinutes: z.number().int().openapi({ example: 15 }),
-  breakMinutes: z.number().int().openapi({ example: 60 }),
-  overtimeThresholdMinutes: z.number().int().openapi({ example: 60 })
+  shiftEndTime: z.string().openapi({ example: '17:00' }),
+  checkInStartTime: z.string().openapi({ example: '07:00' }),
+  checkInEndTime: z.string().openapi({ example: '11:00' }),
+  checkOutStartTime: z.string().openapi({ example: '16:00' }),
+  checkOutEndTime: z.string().openapi({ example: '20:00' }),
+  graceMinutes: z.number().int().optional().openapi({ example: 15 }),
+  breakMinutes: z.number().int().optional().openapi({ example: 60 }),
+  overtimeThresholdMinutes: z.number().int().optional().openapi({ example: 60 })
 });
 
-export const UpdateShiftBodySchema = CreateShiftBodySchema.partial();
+export const UpdateShiftBodySchema = z.object({
+  name: z.string().optional().openapi({ example: 'Morning Shift' }),
+  shiftStartTime: z.string().optional().openapi({ example: '09:00' }),
+  shiftEndTime: z.string().optional().openapi({ example: '17:00' }),
+  checkInStartTime: z.string().optional().openapi({ example: '07:00' }),
+  checkInEndTime: z.string().optional().openapi({ example: '11:00' }),
+  checkOutStartTime: z.string().optional().openapi({ example: '16:00' }),
+  checkOutEndTime: z.string().optional().openapi({ example: '20:00' }),
+  graceMinutes: z.number().int().optional().openapi({ example: 15 }),
+  breakMinutes: z.number().int().optional().openapi({ example: 60 }),
+  overtimeThresholdMinutes: z.number().int().optional().openapi({ example: 60 })
+});
 
 // Registering Paths
 registry.registerPath({
