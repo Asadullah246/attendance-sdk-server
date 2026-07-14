@@ -1,4 +1,5 @@
 let API_KEY = localStorage.getItem('zk_api_key') || '';
+let currentReports = {};
 
 document.addEventListener('DOMContentLoaded', () => {
     const loginOverlay = document.getElementById('login-overlay');
@@ -57,6 +58,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('btn-close-create-user').addEventListener('click', () => {
         createUserModal.classList.add('hidden');
+    });
+
+    // Report Details Modal Close
+    document.getElementById('btn-close-report-details')?.addEventListener('click', () => {
+        document.getElementById('report-details-modal').classList.add('hidden');
     });
     
     // Tab switching logic
@@ -462,16 +468,21 @@ async function fetchReports() {
         
         if (json.success && json.data.length > 0) {
             tbody.innerHTML = '';
+            currentReports = {};
             json.data.forEach(report => {
+                currentReports[report.id] = report;
                 let badgeClass = 'badge-secondary';
-                if (report.status === 'Present') badgeClass = 'badge-online';
-                if (report.status === 'Absent') badgeClass = 'badge-offline';
-                if (report.status === 'Late') badgeClass = 'badge-primary';
+                if (report.status === 'PRESENT') badgeClass = 'badge-online';
+                if (report.status === 'ABSENT') badgeClass = 'badge-offline';
+                if (report.status === 'LATE') badgeClass = 'badge-primary';
                 
                 const statusBadge = `<span class="badge ${badgeClass}">${report.status}</span>`;
                 const dateStr = new Date(report.scheduleDate).toLocaleDateString();
 
                 const tr = document.createElement('tr');
+                tr.style.cursor = 'pointer';
+                tr.title = 'Click to view details';
+                tr.onclick = () => showReportDetails(report.id);
                 tr.innerHTML = `
                     <td><strong>${report.uid}</strong></td>
                     <td>${dateStr}</td>
@@ -488,6 +499,59 @@ async function fetchReports() {
     } catch (e) {
         console.error(e);
         showToast('Failed to load reports');
+    }
+}
+
+async function showReportDetails(id) {
+    const report = currentReports[id];
+    if (!report) return;
+
+    document.getElementById('report-details-modal').classList.remove('hidden');
+    document.getElementById('rd-title').textContent = `Report Details - UID: ${report.uid}`;
+    
+    const checkInStr = report.actualCheckIn ? new Date(report.actualCheckIn).toLocaleTimeString() : 'Missing';
+    const checkOutStr = report.actualCheckOut ? new Date(report.actualCheckOut).toLocaleTimeString() : 'Missing';
+    const dateStrOnly = new Date(report.scheduleDate).toISOString().split('T')[0];
+
+    document.getElementById('rd-content').innerHTML = `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div><strong>Date:</strong> ${new Date(report.scheduleDate).toLocaleDateString()}</div>
+            <div><strong>Status:</strong> ${report.status}</div>
+            <div><strong>Check-In:</strong> ${checkInStr}</div>
+            <div><strong>Check-Out:</strong> ${checkOutStr}</div>
+            <div><strong>Working:</strong> ${report.workingMinutes}m</div>
+            <div><strong>Late:</strong> ${report.lateMinutes}m</div>
+            <div><strong>Overtime:</strong> ${report.overtimeMinutes}m</div>
+            <div><strong>Shift:</strong> ${report.timetable ? report.timetable.name : 'Unknown'}</div>
+        </div>
+        <div style="margin-top: 10px;"><strong>Notes:</strong> <span style="color: #eab308;">${report.anomalyNotes || 'None'}</span></div>
+    `;
+
+    document.getElementById('rd-punches-tbody').innerHTML = '<tr><td colspan="3" class="text-center">Loading punches...</td></tr>';
+
+    try {
+        const dateFrom = `${dateStrOnly}T00:00:00.000Z`;
+        const dateTo = `${dateStrOnly}T23:59:59.999Z`;
+        const response = await fetchWithAuth(`/api/v1/attendance?uid=${report.uid}&dateFrom=${dateFrom}&dateTo=${dateTo}&limit=100`);
+        const json = await response.json();
+        const ptbody = document.getElementById('rd-punches-tbody');
+        
+        if (json.success && json.data.length > 0) {
+            ptbody.innerHTML = '';
+            json.data.forEach(log => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${new Date(log.punchTime).toLocaleTimeString()}</td>
+                    <td>${log.deviceSn}</td>
+                    <td>${getVerifyType(log.verifyType)}</td>
+                `;
+                ptbody.appendChild(tr);
+            });
+        } else {
+            ptbody.innerHTML = '<tr><td colspan="3" class="text-center">No raw punches found</td></tr>';
+        }
+    } catch (e) {
+        document.getElementById('rd-punches-tbody').innerHTML = '<tr><td colspan="3" class="text-center" style="color:#ef4444;">Failed to load</td></tr>';
     }
 }
 

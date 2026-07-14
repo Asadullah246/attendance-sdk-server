@@ -243,6 +243,36 @@
         <span id="toast-msg"></span>
     </div>
 
+    <!-- Report Details Modal -->
+    <div id="report-details-modal" class="modal hidden">
+        <div class="modal-content glass-panel" style="max-width: 600px;">
+            <h3 id="rd-title">Report Details</h3>
+            <div id="rd-content" style="margin-top: 15px; line-height: 1.6;">
+                <!-- Content injected via JS -->
+            </div>
+            
+            <h4 style="margin-top: 20px; margin-bottom: 10px;">Raw Punches</h4>
+            <div class="table-container" style="max-height: 200px; overflow-y: auto;">
+                <table id="rd-punches-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Device</th>
+                            <th>Type</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rd-punches-tbody">
+                        <tr><td colspan="3" class="text-center">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="action-group" style="margin-top: 20px; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" id="btn-close-report-details">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Login Overlay -->
     <div id="login-overlay" class="login-overlay">
         <div class="login-box glass-panel">
