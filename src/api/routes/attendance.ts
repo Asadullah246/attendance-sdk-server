@@ -15,11 +15,26 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
  * Fetch attendance logs, optionally filtered
  */
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
-  const { sn, limit = '100' } = req.query;
+  const { sn, uid, dateFrom, dateTo, excludeDuplicates, limit = '100' } = req.query;
   
   const whereClause: any = {};
+  
   if (sn && typeof sn === 'string') {
     whereClause.deviceSn = sn;
+  }
+  
+  if (uid) {
+    whereClause.uid = parseInt(uid as string, 10);
+  }
+
+  if (dateFrom || dateTo) {
+    whereClause.punchTime = {};
+    if (dateFrom) whereClause.punchTime.gte = new Date(dateFrom as string);
+    if (dateTo) whereClause.punchTime.lte = new Date(dateTo as string);
+  }
+
+  if (excludeDuplicates === 'true') {
+    whereClause.isDuplicate = false;
   }
 
   const limitNum = parseInt(limit as string, 10);

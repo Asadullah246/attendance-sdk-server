@@ -12,6 +12,10 @@ import deviceRoutes from './api/routes/devices';
 import attendanceRoutes from './api/routes/attendance';
 import userRoutes from './api/routes/users';
 import authRoutes from './api/routes/auth';
+import configRoutes from './api/routes/configs';
+import shiftRoutes from './api/routes/shifts';
+import scheduleRoutes from './api/routes/schedules';
+import reportRoutes from './api/routes/reports';
 import pushRouter from './push/iclock';
 import { requireApiKey } from './api/middleware/auth';
 
@@ -68,6 +72,10 @@ app.use('/api/v1', requireApiKey); // Apply authentication to all subsequent /ap
 app.use('/api/v1/devices', deviceRoutes);
 app.use('/api/v1/attendance', attendanceRoutes);
 app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/configs', configRoutes);
+app.use('/api/v1/shifts', shiftRoutes);
+app.use('/api/v1/schedules', scheduleRoutes);
+app.use('/api/v1/reports', reportRoutes);
 
 // Command routes (Phase 3 — Push Protocol commands)
 app.use('/api/v1/commands', commandRoutes);

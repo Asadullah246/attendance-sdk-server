@@ -102,6 +102,7 @@ model AttendanceLog {
   verifyType  Int?      @map("verify_type")           // 1=Finger, 15=Face, 4=Card
   source      String    @default("push")              // 'push' or 'pull'
   forwarded   Boolean   @default(false)               // Sent to backend apps?
+  isDuplicate Boolean   @default(false) @map("is_duplicate") // Marked by de-duplication filter
   rawData     String?   @map("raw_data")              // Original data for debugging
   createdAt   DateTime  @default(now()) @map("created_at")
 
@@ -109,6 +110,7 @@ model AttendanceLog {
   @@index([deviceSn])
   @@index([uid])
   @@index([punchTime])
+  @@index([isDuplicate])
   @@map("attendance_logs")
 }
 
@@ -161,3 +163,96 @@ model WebhookQueue {
   @@index([status])
   @@map("webhook_queue")
 }
+
+// ─── ShiftTimetable ──────────────────────────────────────────────────
+// Defines shift working hours and valid check-in/out windows
+model ShiftTimetable {
+  id                        Int       @id @default(autoincrement())
+  name                      String
+  shiftStartOffset          Int       @map("shift_start_offset")          // Minutes from midnight
+  shiftEndOffset            Int       @map("shift_end_offset")            // Minutes from midnight
+  checkInStartOffset        Int       @map("check_in_start_offset")
+  checkInEndOffset          Int       @map("check_in_end_offset")
+  checkOutStartOffset       Int       @map("check_out_start_offset")
+  checkOutEndOffset         Int       @map("check_out_end_offset")
+  graceMinutes              Int       @default(15) @map("grace_minutes")
+  overtimeThresholdMinutes  Int       @default(30) @map("overtime_threshold_minutes")
+  breakMinutes              Int       @default(0)  @map("break_minutes")
+  isActive                  Boolean   @default(true) @map("is_active")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  schedules                 EmployeeSchedule[]
+  reports                   DailyAttendanceReport[]
+
+  @@map("shift_timetables")
+}
+
+// ─── EmployeeSchedule ────────────────────────────────────────────────
+// Maps an employee to a shift on a specific calendar date
+model EmployeeSchedule {
+  id                Int       @id @default(autoincrement())
+  employeeId        String    @map("employee_id")
+  employeeDeviceUid Int       @map("employee_device_uid")
+  timetableId       Int       @map("timetable_id")
+  scheduleDate      DateTime  @db.Date @map("schedule_date")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  timetable         ShiftTimetable @relation(fields: [timetableId], references: [id])
+
+  @@unique([employeeId, scheduleDate])
+  @@index([scheduleDate])
+  @@index([employeeDeviceUid])
+  @@map("employee_schedules")
+}
+
+// ─── DailyAttendanceReport ───────────────────────────────────────────
+// Final calculated output consumed by payroll / main app
+model DailyAttendanceReport {
+  id                    Int       @id @default(autoincrement())
+  employeeId            String    @map("employee_id")
+  employeeDeviceUid     Int       @map("employee_device_uid")
+  scheduleDate          DateTime  @db.Date @map("schedule_date")
+  timetableId           Int       @map("timetable_id")
+  
+  actualCheckIn         DateTime? @map("actual_check_in")
+  actualCheckOut        DateTime? @map("actual_check_out")
+  
+  workingMinutes        Int       @default(0) @map("working_minutes")
+  lateMinutes           Int       @default(0) @map("late_minutes")
+  earlyLeaveMinutes     Int       @default(0) @map("early_leave_minutes")
+  overtimeMinutes       Int       @default(0) @map("overtime_minutes")
+  breakMinutes          Int       @default(0) @map("break_minutes")
+  middlePunchCount      Int       @default(0) @map("middle_punch_count")
+  
+  status                String    // PRESENT, ABSENT, LATE, EARLY_LEAVE, MISSING_PUNCH, EXCEPTION
+  anomalyNotes          String?   @map("anomaly_notes")
+  
+  isManualOverride      Boolean   @default(false) @map("is_manual_override")
+  manualOvertimeMinutes Int       @default(0) @map("manual_overtime_minutes")
+  manualNote            String?   @map("manual_note")
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  timetable             ShiftTimetable @relation(fields: [timetableId], references: [id])
+
+  @@unique([employeeId, scheduleDate])
+  @@index([scheduleDate])
+  @@index([status])
+  @@map("daily_attendance_reports")
+}
+
+// ─── SystemConfig ────────────────────────────────────────────────────
+// System-wide configuration for the calculation engine
+model SystemConfig {
+  id          Int       @id @default(autoincrement())
+  key         String    @unique
+  value       String
+  description String?
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("system_configs")
+}
+

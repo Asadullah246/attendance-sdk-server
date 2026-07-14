@@ -19,6 +19,7 @@ export interface AppConfig {
   connectionTimeout: number;
   webhookSecret: string;
   mainAppWebhookUrl: string;
+  timezone: string;
 }
 
 const config: AppConfig = {
@@ -47,6 +48,9 @@ const config: AppConfig = {
   // Webhooks
   webhookSecret: process.env.WEBHOOK_SECRET || '',
   mainAppWebhookUrl: process.env.MAIN_APP_WEBHOOK_URL || '',
+  
+  // Settings
+  timezone: process.env.TIMEZONE || 'Asia/Dhaka',
 };
 
 export default config;

@@ -3,6 +3,8 @@ import config from './config';
 import logger from './utils/logger';
 import { testConnection, disconnect } from './database/prisma';
 import { WebhookService } from './services/webhookService';
+import { ConfigService } from './services/configService';
+import { AttendanceWorker } from './scheduler/attendanceWorker';
 
 async function startServer(): Promise<void> {
   logger.info('─────────────────────────────────────────');
@@ -14,6 +16,9 @@ async function startServer(): Promise<void> {
   const dbConnected = await testConnection();
   if (!dbConnected) {
     logger.warn('⚠️  Server starting without database — some features will be unavailable');
+  } else {
+    // Seed system configurations if missing
+    await ConfigService.seedDefaults();
   }
 
   // Start HTTP server
@@ -23,11 +28,11 @@ async function startServer(): Promise<void> {
     logger.info('─────────────────────────────────────────');
   });
 
-  // Start background workers
-  logger.info('🚀 Starting Webhook processing background worker (15s interval)');
-  setInterval(() => {
-    WebhookService.processWebhooks();
-  }, 15000);
+  // Start background services
+  WebhookService.processWebhooks();
+  setInterval(() => WebhookService.processWebhooks(), 60000);
+  
+  await AttendanceWorker.start();
 
   // ─── Graceful Shutdown ───────────────────────────────────────────
   const shutdown = async (signal: string): Promise<void> => {
