@@ -103,8 +103,15 @@ async function main() {
   console.log('Generating Schedules and Punches for the last 7 days...');
 
   for (let i = 0; i < 7; i++) {
-    const targetDate = new Date(today);
-    targetDate.setDate(today.getDate() - i);
+    const targetDateLocal = new Date(today);
+    targetDateLocal.setDate(today.getDate() - i);
+    
+    // Create UTC midnight for DB @db.Date fields
+    const year = targetDateLocal.getFullYear();
+    const month = String(targetDateLocal.getMonth() + 1).padStart(2, '0');
+    const day = String(targetDateLocal.getDate()).padStart(2, '0');
+    const dateString = `${year}-${month}-${day}`;
+    const targetDateUTC = new Date(`${dateString}T00:00:00.000Z`);
 
     for (const u of users) {
       // Create Schedule
@@ -112,16 +119,19 @@ async function main() {
         data: {
           uid: u.uid,
           timetableId: shift.id,
-          scheduleDate: targetDate
+          scheduleDate: targetDateUTC
         }
       });
 
       const generatePunch = async (hours: number, minutes: number) => {
+        // Punches are still local time, so we use targetDateLocal
+        const d = new Date(targetDateLocal);
+        d.setHours(hours, minutes, 0, 0);
         await prisma.attendanceLog.create({
           data: {
             deviceSn,
             uid: u.uid,
-            punchTime: setTime(targetDate, hours, minutes),
+            punchTime: d,
             verifyType: 1, // Fingerprint
             source: 'push'
           }
@@ -159,11 +169,6 @@ async function main() {
     }
 
     // Trigger calculation for this specific date
-    const year = targetDate.getFullYear();
-    const month = String(targetDate.getMonth() + 1).padStart(2, '0');
-    const day = String(targetDate.getDate()).padStart(2, '0');
-    const dateString = `${year}-${month}-${day}`;
-
     console.log(`Calculating attendance for ${dateString}...`);
     await DuplicateDetectionService.filterDuplicates(dateString);
     await AttendanceCalculationService.calculateForDate(dateString);

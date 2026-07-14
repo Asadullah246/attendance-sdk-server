@@ -109,9 +109,8 @@ export class AttendanceCalculationService {
    * Main entry point to run calculation for a specific date.
    */
   static async calculateForDate(dateStr: string) {
-    // Parse as local midnight to correctly match DB schedules
-    const [year, month, day] = dateStr.split('-');
-    const targetDate = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), 0, 0, 0, 0);
+    // Parse as UTC midnight to correctly match DB @db.Date fields
+    const targetDate = new Date(`${dateStr}T00:00:00.000Z`);
 
     logger.info(`[AttendanceCalculationService] Starting calculation for date: ${dateStr}`);
 
@@ -233,9 +232,8 @@ export class AttendanceCalculationService {
    * Identifies employees who were scheduled but had no punches, and marks them ABSENT.
    */
   static async markAbsentees(dateStr: string) {
-    // Parse as local midnight to correctly match DB schedules
-    const [year, month, day] = dateStr.split('-');
-    const targetDate = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), 0, 0, 0, 0);
+    // Parse as UTC midnight to correctly match DB @db.Date fields
+    const targetDate = new Date(`${dateStr}T00:00:00.000Z`);
 
     // Fetch schedules
     const schedules = await prisma.employeeSchedule.findMany({
