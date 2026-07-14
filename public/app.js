@@ -98,13 +98,21 @@ function initDashboard() {
     fetchAttendance();
     fetchUsers();
     fetchCommands();
+    fetchShifts();
+    fetchReports();
 
     document.getElementById('refresh-btn').addEventListener('click', () => {
         fetchDevices();
         fetchAttendance();
         fetchUsers();
         fetchCommands();
+        fetchShifts();
+        fetchReports();
         showToast('Data refreshed');
+    });
+
+    document.getElementById('btn-filter-attendance')?.addEventListener('click', () => {
+        fetchAttendance();
     });
 }
 
@@ -190,7 +198,11 @@ async function fetchDevices() {
 
 async function fetchAttendance() {
     try {
-        const response = await fetchWithAuth('/api/v1/attendance?limit=5000');
+        const uidInput = document.getElementById('attendance-uid-input');
+        const uid = uidInput ? uidInput.value : '';
+        const query = uid ? `&uid=${uid}` : '';
+
+        const response = await fetchWithAuth(`/api/v1/attendance?limit=5000${query}`);
         const json = await response.json();
         const tbody = document.getElementById('attendance-tbody');
         
@@ -408,3 +420,100 @@ async function fetchCommands() {
         showToast('Failed to load sync logs');
     }
 }
+
+// Shifts Data
+async function fetchShifts() {
+    try {
+        const response = await fetchWithAuth('/api/v1/shifts');
+        const json = await response.json();
+        const tbody = document.getElementById('shifts-tbody');
+        
+        if (json.success && json.data.length > 0) {
+            tbody.innerHTML = '';
+            json.data.forEach(shift => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${shift.id}</strong></td>
+                    <td>${shift.name}</td>
+                    <td>${shift.shiftStartTime || '-'} to ${shift.shiftEndTime || '-'}</td>
+                    <td>${shift.checkInStartTime || '-'} to ${shift.checkInEndTime || '-'}</td>
+                    <td>${shift.checkOutStartTime || '-'} to ${shift.checkOutEndTime || '-'}</td>
+                    <td>Grace: ${shift.graceMinutes}m | Break: ${shift.breakMinutes}m</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center">No shifts found.</td></tr>';
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Failed to load shifts');
+    }
+}
+
+// Daily Reports
+async function fetchReports() {
+    try {
+        const dateInput = document.getElementById('calc-date-input').value;
+        const query = dateInput ? `?date=${dateInput}` : '';
+        const response = await fetchWithAuth(`/api/v1/reports/daily${query}`);
+        const json = await response.json();
+        const tbody = document.getElementById('reports-tbody');
+        
+        if (json.success && json.data.length > 0) {
+            tbody.innerHTML = '';
+            json.data.forEach(report => {
+                let badgeClass = 'badge-secondary';
+                if (report.status === 'Present') badgeClass = 'badge-online';
+                if (report.status === 'Absent') badgeClass = 'badge-offline';
+                if (report.status === 'Late') badgeClass = 'badge-primary';
+                
+                const statusBadge = `<span class="badge ${badgeClass}">${report.status}</span>`;
+                const dateStr = new Date(report.scheduleDate).toLocaleDateString();
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${report.uid}</strong></td>
+                    <td>${dateStr}</td>
+                    <td>${statusBadge}</td>
+                    <td>${report.workingMinutes}</td>
+                    <td>${report.lateMinutes}</td>
+                    <td>${report.overtimeMinutes}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center">No reports found for this date.</td></tr>';
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Failed to load reports');
+    }
+}
+
+document.getElementById('btn-trigger-calc').addEventListener('click', async () => {
+    const dateInput = document.getElementById('calc-date-input').value;
+    if (!dateInput) {
+        showToast('Please select a date first');
+        return;
+    }
+    
+    try {
+        const response = await fetchWithAuth('/api/v1/reports/calculate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: dateInput })
+        });
+        const json = await response.json();
+        
+        if (json.success) {
+            showToast(`Calculation triggered: ${json.data.calculatedCount} processed.`);
+            fetchReports(); // Refresh the list
+        } else {
+            showToast(`Error: ${json.message}`);
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Failed to calculate reports');
+    }
+});
