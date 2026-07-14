@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
-import { registry, SuccessResponseSchema, ErrorResponseSchema } from '../../config/swagger';
+import { registry, createSuccessResponseSchema, ErrorResponseSchema } from '../../config/swagger';
 
 extendZodWithOpenApi(z);
 
@@ -34,6 +34,48 @@ export const ReportIdParamSchema = z.object({
   id: z.string().openapi({ description: 'Report ID', example: '1' })
 });
 
+export const ReportSchema = z.object({
+  id: z.number().int().openapi({ example: 1 }),
+  employeeId: z.string().openapi({ example: 'EMP1001' }),
+  employeeDeviceUid: z.number().int().openapi({ example: 1 }),
+  scheduleDate: z.string().openapi({ example: '2023-10-25T00:00:00Z' }),
+  timetableId: z.number().int().openapi({ example: 1 }),
+  actualCheckIn: z.string().nullable().openapi({ example: '2023-10-25T08:00:00Z' }),
+  actualCheckOut: z.string().nullable().openapi({ example: '2023-10-25T17:00:00Z' }),
+  workingMinutes: z.number().int().openapi({ example: 540 }),
+  lateMinutes: z.number().int().openapi({ example: 0 }),
+  earlyLeaveMinutes: z.number().int().openapi({ example: 0 }),
+  overtimeMinutes: z.number().int().openapi({ example: 0 }),
+  breakMinutes: z.number().int().openapi({ example: 0 }),
+  middlePunchCount: z.number().int().openapi({ example: 0 }),
+  status: z.string().openapi({ example: 'PRESENT' }),
+  anomalyNotes: z.string().nullable().openapi({ example: null }),
+  isManualOverride: z.boolean().openapi({ example: false }),
+  manualOvertimeMinutes: z.number().int().openapi({ example: 0 }),
+  manualNote: z.string().nullable().openapi({ example: null }),
+  createdAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' }),
+  updatedAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' })
+}).openapi('DailyAttendanceReport');
+
+export const SummarySchema = z.object({
+  employeeId: z.string().openapi({ example: 'EMP1001' }),
+  totalDays: z.number().int().openapi({ example: 22 }),
+  totalPresentDays: z.number().int().openapi({ example: 20 }),
+  totalAbsentDays: z.number().int().openapi({ example: 1 }),
+  totalLateDays: z.number().int().openapi({ example: 1 }),
+  totalEarlyLeaveDays: z.number().int().openapi({ example: 0 }),
+  totalMissingPunchDays: z.number().int().openapi({ example: 0 }),
+  totalWorkingMinutes: z.number().int().openapi({ example: 10800 }),
+  totalLateMinutes: z.number().int().openapi({ example: 15 }),
+  totalOvertimeMinutes: z.number().int().openapi({ example: 120 }),
+  totalManualOvertimeMinutes: z.number().int().openapi({ example: 0 })
+}).openapi('Summary');
+
+export const CalculationResultSchema = z.object({
+  calculatedCount: z.number().int().openapi({ example: 50 }),
+  absentCount: z.number().int().openapi({ example: 2 })
+}).openapi('CalculationResult');
+
 
 // Registering Paths
 registry.registerPath({
@@ -48,7 +90,7 @@ registry.registerPath({
       description: 'Reports fetched successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(z.array(ReportSchema))
         }
       }
     }
@@ -67,7 +109,7 @@ registry.registerPath({
       description: 'Summary generated successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(SummarySchema)
         }
       }
     },
@@ -94,7 +136,7 @@ registry.registerPath({
       description: 'Calculation triggered successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(CalculationResultSchema)
         }
       }
     },
@@ -124,7 +166,7 @@ registry.registerPath({
       description: 'Report overridden successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(ReportSchema)
         }
       }
     },

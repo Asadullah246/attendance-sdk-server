@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
-import { registry, SuccessResponseSchema } from '../../config/swagger';
+import { registry, createSuccessResponseSchema, ErrorResponseSchema } from '../../config/swagger';
 
 extendZodWithOpenApi(z);
 
@@ -12,6 +12,19 @@ export const GetAttendanceQuerySchema = z.object({
   excludeDuplicates: z.string().optional().openapi({ description: 'Filter out duplicate punches (true/false)', example: 'true' }),
   limit: z.string().optional().openapi({ description: 'Number of records to return', example: '100' })
 });
+
+export const AttendanceLogSchema = z.object({
+  id: z.number().int().openapi({ example: 1 }),
+  deviceSn: z.string().openapi({ example: 'SN12345' }),
+  uid: z.number().int().openapi({ example: 1 }),
+  punchTime: z.string().openapi({ example: '2023-10-25T08:00:00Z' }),
+  punchState: z.string().openapi({ example: '0' }),
+  verifyType: z.number().int().openapi({ example: 1 }),
+  workCode: z.string().openapi({ example: '0' }),
+  isDuplicate: z.boolean().openapi({ example: false }),
+  rawData: z.string().nullable().openapi({ example: null }),
+  createdAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' })
+}).openapi('AttendanceLog');
 
 // Registering Paths
 registry.registerPath({
@@ -26,7 +39,7 @@ registry.registerPath({
       description: 'Attendance logs fetched successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(z.array(AttendanceLogSchema))
         }
       }
     }

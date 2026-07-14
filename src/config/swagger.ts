@@ -21,12 +21,19 @@ export const apiKeyAuth = registry.registerComponent(
   }
 );
 
-// Generic Success Response Schema
 export const SuccessResponseSchema = z.object({
   success: z.boolean().openapi({ example: true }),
-  data: z.any().optional().openapi({ description: 'The response payload' }),
   message: z.string().openapi({ example: 'Operation completed successfully' }),
+  data: z.any().optional().openapi({ description: 'The response payload' }),
 }).openapi('SuccessResponse');
+
+export function createSuccessResponseSchema(dataSchema: z.ZodTypeAny) {
+  return z.object({
+    success: z.boolean().openapi({ example: true }),
+    message: z.string().openapi({ example: 'Operation completed successfully' }),
+    data: dataSchema.optional(),
+  });
+}
 
 registry.register('SuccessResponse', SuccessResponseSchema);
 

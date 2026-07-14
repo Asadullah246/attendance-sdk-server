@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
-import { registry, SuccessResponseSchema, ErrorResponseSchema } from '../../config/swagger';
+import { registry, createSuccessResponseSchema, ErrorResponseSchema } from '../../config/swagger';
 
 extendZodWithOpenApi(z);
 
@@ -19,6 +19,21 @@ export const DeleteUserQuerySchema = z.object({
   deviceSn: z.string().optional().openapi({ description: 'Specific device SN. If omitted, removes from all devices', example: 'SN12345' })
 });
 
+export const UserSchema = z.object({
+  id: z.number().int().openapi({ example: 1 }),
+  uid: z.number().int().openapi({ example: 1001 }),
+  name: z.string().openapi({ example: 'John Doe' }),
+  privilege: z.number().int().openapi({ example: 0 }),
+  status: z.string().openapi({ example: 'enrolled' }),
+  createdAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' }),
+  updatedAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' })
+}).openapi('User');
+
+export const UserCommandResponseSchema = z.object({
+  user: UserSchema.optional(),
+  commandId: z.string().optional().openapi({ example: 'cmd_12345' })
+}).openapi('UserCommandResponse');
+
 // Registering Paths
 registry.registerPath({
   method: 'get',
@@ -31,7 +46,7 @@ registry.registerPath({
       description: 'Users fetched successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(z.array(UserSchema))
         }
       }
     }
@@ -52,7 +67,7 @@ registry.registerPath({
       description: 'User created successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(UserCommandResponseSchema)
         }
       }
     },
@@ -82,7 +97,7 @@ registry.registerPath({
       description: 'User deleted successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(UserCommandResponseSchema)
         }
       }
     },

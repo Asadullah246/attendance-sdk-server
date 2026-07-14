@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
-import { registry, SuccessResponseSchema, ErrorResponseSchema } from '../../config/swagger';
+import { registry, createSuccessResponseSchema, ErrorResponseSchema } from '../../config/swagger';
 
 extendZodWithOpenApi(z);
 
@@ -9,9 +9,17 @@ export const GetConfigParamsSchema = z.object({
 });
 
 export const UpdateConfigBodySchema = z.object({
-  value: z.string().openapi({ description: 'The configuration value', example: 'Asia/Dhaka' }),
-  description: z.string().optional().openapi({ description: 'Optional description for the config', example: 'System timezone' })
+  value: z.string().openapi({ description: 'Configuration value', example: '10' }),
+  description: z.string().optional().openapi({ description: 'Optional description', example: 'System timezone offset' })
 });
+
+export const ConfigSchema = z.object({
+  id: z.number().int().openapi({ example: 1 }),
+  key: z.string().openapi({ example: 'TIMEZONE' }),
+  value: z.string().openapi({ example: '+06:00' }),
+  description: z.string().nullable().openapi({ example: 'System timezone' }),
+  updatedAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' })
+}).openapi('SystemConfig');
 
 // Registering Paths
 registry.registerPath({
@@ -25,7 +33,7 @@ registry.registerPath({
       description: 'Configs fetched successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(z.array(ConfigSchema))
         }
       }
     }
@@ -46,7 +54,7 @@ registry.registerPath({
       description: 'Config fetched successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(ConfigSchema)
         }
       }
     },
@@ -82,7 +90,7 @@ registry.registerPath({
       description: 'Config updated successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(ConfigSchema)
         }
       }
     },

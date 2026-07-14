@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
-import { registry, SuccessResponseSchema, ErrorResponseSchema } from '../../config/swagger';
+import { registry, createSuccessResponseSchema, ErrorResponseSchema } from '../../config/swagger';
 
 extendZodWithOpenApi(z);
 
@@ -31,6 +31,20 @@ export const ScheduleIdParamSchema = z.object({
   id: z.string().openapi({ description: 'Schedule ID', example: '1' })
 });
 
+export const ScheduleSchema = z.object({
+  id: z.number().int().openapi({ example: 1 }),
+  employeeId: z.string().openapi({ example: 'EMP1001' }),
+  employeeDeviceUid: z.number().int().openapi({ example: 1 }),
+  timetableId: z.number().int().openapi({ example: 1 }),
+  scheduleDate: z.string().openapi({ example: '2023-10-25T00:00:00.000Z' }),
+  createdAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' }),
+  updatedAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' })
+}).openapi('EmployeeSchedule');
+
+export const BulkScheduleResultSchema = z.object({
+  count: z.number().int().openapi({ example: 5 })
+}).openapi('BulkScheduleResult');
+
 // Registering Paths
 registry.registerPath({
   method: 'get',
@@ -44,7 +58,7 @@ registry.registerPath({
       description: 'Schedules fetched successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(z.array(ScheduleSchema))
         }
       }
     }
@@ -63,7 +77,7 @@ registry.registerPath({
       description: 'Schedule assigned successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(ScheduleSchema)
         }
       }
     },
@@ -90,7 +104,7 @@ registry.registerPath({
       description: 'Schedules bulk assigned successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(BulkScheduleResultSchema)
         }
       }
     }
@@ -109,7 +123,7 @@ registry.registerPath({
       description: 'Schedule removed successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(z.null())
         }
       }
     }

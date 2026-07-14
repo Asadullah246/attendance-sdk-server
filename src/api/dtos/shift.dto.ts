@@ -1,12 +1,29 @@
 import { z } from 'zod';
 import { extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
-import { registry, SuccessResponseSchema, ErrorResponseSchema } from '../../config/swagger';
+import { registry, createSuccessResponseSchema, ErrorResponseSchema } from '../../config/swagger';
 
 extendZodWithOpenApi(z);
 
 export const ShiftIdParamSchema = z.object({
-  id: z.string().openapi({ description: 'The shift ID', example: '1' })
+  id: z.string().openapi({ description: 'Shift ID', example: '1' })
 });
+
+export const ShiftSchema = z.object({
+  id: z.number().int().openapi({ example: 1 }),
+  name: z.string().openapi({ example: 'Morning Shift' }),
+  shiftStartOffset: z.number().int().openapi({ example: 540 }),
+  shiftEndOffset: z.number().int().openapi({ example: 1020 }),
+  checkInStartOffset: z.number().int().openapi({ example: 420 }),
+  checkInEndOffset: z.number().int().openapi({ example: 660 }),
+  checkOutStartOffset: z.number().int().openapi({ example: 960 }),
+  checkOutEndOffset: z.number().int().openapi({ example: 1200 }),
+  graceMinutes: z.number().int().openapi({ example: 15 }),
+  overtimeThresholdMinutes: z.number().int().openapi({ example: 30 }),
+  breakMinutes: z.number().int().openapi({ example: 0 }),
+  isActive: z.boolean().openapi({ example: true }),
+  createdAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' }),
+  updatedAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' })
+}).openapi('Shift');
 
 export const CreateShiftBodySchema = z.object({
   name: z.string().openapi({ example: 'Morning Shift' }),
@@ -35,7 +52,7 @@ registry.registerPath({
       description: 'Shifts fetched successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(z.array(ShiftSchema))
         }
       }
     }
@@ -54,7 +71,7 @@ registry.registerPath({
       description: 'Shift fetched successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(ShiftSchema)
         }
       }
     },
@@ -83,7 +100,7 @@ registry.registerPath({
       description: 'Shift created successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(ShiftSchema)
         }
       }
     }
@@ -105,7 +122,7 @@ registry.registerPath({
       description: 'Shift updated successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(ShiftSchema)
         }
       }
     }
@@ -124,7 +141,7 @@ registry.registerPath({
       description: 'Shift deleted successfully',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: createSuccessResponseSchema(z.null())
         }
       }
     }
