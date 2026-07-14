@@ -152,7 +152,7 @@ export class AttendanceCalculationService {
         // Fetch raw logs
         const rawLogs = await prisma.attendanceLog.findMany({
           where: {
-            uid: schedule.employeeDeviceUid,
+            uid: schedule.uid,
             isDuplicate: false, // exclude duplicates
             punchTime: {
               gte: windowStart,
@@ -170,28 +170,28 @@ export class AttendanceCalculationService {
         // Check if report already exists and is overridden
         const existingReport = await prisma.dailyAttendanceReport.findUnique({
           where: {
-            employeeId_scheduleDate: {
-              employeeId: schedule.employeeId,
+            uid_scheduleDate: {
+              uid: schedule.uid,
               scheduleDate: schedule.scheduleDate
             }
           }
         });
 
         if (existingReport && existingReport.isManualOverride) {
-          logger.info(`[AttendanceCalculationService] Skipping ${schedule.employeeId} on ${dateStr} - Manual Override active`);
+          logger.info(`[AttendanceCalculationService] Skipping ${schedule.uid} on ${dateStr} - Manual Override active`);
           continue;
         }
 
         // Upsert report
         await prisma.dailyAttendanceReport.upsert({
           where: {
-            employeeId_scheduleDate: {
-              employeeId: schedule.employeeId,
+            uid_scheduleDate: {
+              uid: schedule.uid,
               scheduleDate: schedule.scheduleDate
             }
           },
           update: {
-            employeeDeviceUid: schedule.employeeDeviceUid,
+            uid: schedule.uid,
             timetableId: schedule.timetableId,
             actualCheckIn: result.actualCheckIn,
             actualCheckOut: result.actualCheckOut,
@@ -205,8 +205,7 @@ export class AttendanceCalculationService {
             anomalyNotes: result.anomalyNotes
           },
           create: {
-            employeeId: schedule.employeeId,
-            employeeDeviceUid: schedule.employeeDeviceUid,
+            uid: schedule.uid,
             scheduleDate: schedule.scheduleDate,
             timetableId: schedule.timetableId,
             actualCheckIn: result.actualCheckIn,
@@ -225,7 +224,7 @@ export class AttendanceCalculationService {
         // Queue webhook for main app
         await WebhookService.queueWebhook('attendance.calculated', {
           event: 'attendance.calculated',
-          employeeId: schedule.employeeId,
+          uid: schedule.uid,
           date: dateStr,
           status: result.status,
           workingMinutes: result.workingMinutes,
@@ -235,7 +234,7 @@ export class AttendanceCalculationService {
 
         processedCount++;
       } catch (error) {
-        logger.error(`[AttendanceCalculationService] Failed calculation for employee ${schedule.employeeId}`, { error: (error as Error).message });
+        logger.error(`[AttendanceCalculationService] Failed calculation for employee ${schedule.uid}`, { error: (error as Error).message });
       }
     }
 
@@ -261,8 +260,8 @@ export class AttendanceCalculationService {
       // Find if they have a report (created by calculateForDate)
       const existingReport = await prisma.dailyAttendanceReport.findUnique({
         where: {
-          employeeId_scheduleDate: {
-            employeeId: schedule.employeeId,
+          uid_scheduleDate: {
+            uid: schedule.uid,
             scheduleDate: schedule.scheduleDate
           }
         }
@@ -272,8 +271,7 @@ export class AttendanceCalculationService {
       if (!existingReport) {
         await prisma.dailyAttendanceReport.create({
           data: {
-            employeeId: schedule.employeeId,
-            employeeDeviceUid: schedule.employeeDeviceUid,
+            uid: schedule.uid,
             scheduleDate: schedule.scheduleDate,
             timetableId: schedule.timetableId,
             status: 'ABSENT'
@@ -283,7 +281,7 @@ export class AttendanceCalculationService {
         // Queue webhook for main app
         await WebhookService.queueWebhook('attendance.calculated', {
           event: 'attendance.calculated',
-          employeeId: schedule.employeeId,
+          uid: schedule.uid,
           date: dateStr,
           status: 'ABSENT',
           workingMinutes: 0,

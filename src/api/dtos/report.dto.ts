@@ -4,18 +4,18 @@ import { registry, createSuccessResponseSchema, ErrorResponseSchema } from '../.
 
 extendZodWithOpenApi(z);
 
-export const GetDailyReportsQuerySchema = z.object({
+export const GetReportsQuerySchema = z.object({
   date: z.string().optional().openapi({ description: 'Specific date (YYYY-MM-DD)', example: '2023-10-25' }),
-  employeeId: z.string().optional().openapi({ description: 'Employee ID', example: 'EMP1001' }),
-  status: z.string().optional().openapi({ description: 'Attendance status (e.g., PRESENT, LATE)', example: 'LATE' }),
-  dateFrom: z.string().optional().openapi({ description: 'Start date (YYYY-MM-DD)', example: '2023-10-01' }),
-  dateTo: z.string().optional().openapi({ description: 'End date (YYYY-MM-DD)', example: '2023-10-31' })
+  uid: z.number().int().optional().openapi({ description: 'Employee UID', example: 1001 }),
+  status: z.string().optional().openapi({ description: 'Filter by status (PRESENT, ABSENT, LATE, etc.)', example: 'LATE' }),
+  dateFrom: z.string().optional().openapi({ description: 'Start date for range', example: '2023-10-01' }),
+  dateTo: z.string().optional().openapi({ description: 'End date for range', example: '2023-10-31' })
 });
 
-export const GetSummaryQuerySchema = z.object({
-  employeeId: z.string().openapi({ description: 'Employee ID', example: 'EMP1001' }),
-  dateFrom: z.string().optional().openapi({ description: 'Start date (YYYY-MM-DD)', example: '2023-10-01' }),
-  dateTo: z.string().optional().openapi({ description: 'End date (YYYY-MM-DD)', example: '2023-10-31' })
+export const GenerateSummaryQuerySchema = z.object({
+  dateFrom: z.string().openapi({ description: 'Start date', example: '2023-10-01' }),
+  dateTo: z.string().openapi({ description: 'End date', example: '2023-10-31' }),
+  uid: z.number().int().openapi({ description: 'Employee UID', example: 1001 })
 });
 
 export const CalculateReportsBodySchema = z.object({
@@ -36,12 +36,11 @@ export const ReportIdParamSchema = z.object({
 
 export const ReportSchema = z.object({
   id: z.number().int().openapi({ example: 1 }),
-  employeeId: z.string().openapi({ example: 'EMP1001' }),
-  employeeDeviceUid: z.number().int().openapi({ example: 1 }),
-  scheduleDate: z.string().openapi({ example: '2023-10-25T00:00:00Z' }),
+  uid: z.number().int().openapi({ example: 1001 }),
+  scheduleDate: z.string().openapi({ example: '2023-10-25T00:00:00.000Z' }),
   timetableId: z.number().int().openapi({ example: 1 }),
-  actualCheckIn: z.string().nullable().openapi({ example: '2023-10-25T08:00:00Z' }),
-  actualCheckOut: z.string().nullable().openapi({ example: '2023-10-25T17:00:00Z' }),
+  actualCheckIn: z.string().nullable().openapi({ example: '2023-10-25T08:55:00Z' }),
+  actualCheckOut: z.string().nullable().openapi({ example: '2023-10-25T17:05:00Z' }),
   workingMinutes: z.number().int().openapi({ example: 540 }),
   lateMinutes: z.number().int().openapi({ example: 0 }),
   earlyLeaveMinutes: z.number().int().openapi({ example: 0 }),
@@ -58,18 +57,14 @@ export const ReportSchema = z.object({
 }).openapi('DailyAttendanceReport');
 
 export const SummarySchema = z.object({
-  employeeId: z.string().openapi({ example: 'EMP1001' }),
-  totalDays: z.number().int().openapi({ example: 22 }),
-  totalPresentDays: z.number().int().openapi({ example: 20 }),
-  totalAbsentDays: z.number().int().openapi({ example: 1 }),
-  totalLateDays: z.number().int().openapi({ example: 1 }),
-  totalEarlyLeaveDays: z.number().int().openapi({ example: 0 }),
-  totalMissingPunchDays: z.number().int().openapi({ example: 0 }),
-  totalWorkingMinutes: z.number().int().openapi({ example: 10800 }),
-  totalLateMinutes: z.number().int().openapi({ example: 15 }),
+  uid: z.number().int().openapi({ example: 1001 }),
+  totalWorkingMinutes: z.number().int().openapi({ example: 9600 }),
+  totalLateMinutes: z.number().int().openapi({ example: 45 }),
+  totalEarlyLeaveMinutes: z.number().int().openapi({ example: 0 }),
   totalOvertimeMinutes: z.number().int().openapi({ example: 120 }),
-  totalManualOvertimeMinutes: z.number().int().openapi({ example: 0 })
-}).openapi('Summary');
+  daysPresent: z.number().int().openapi({ example: 20 }),
+  daysAbsent: z.number().int().openapi({ example: 2 })
+}).openapi('AttendanceSummary');
 
 export const CalculationResultSchema = z.object({
   calculatedCount: z.number().int().openapi({ example: 50 }),
@@ -84,7 +79,7 @@ registry.registerPath({
   summary: 'Get daily attendance reports',
   tags: ['Reports'],
   security: [{ ApiKeyAuth: [] }],
-  request: { query: GetDailyReportsQuerySchema },
+  request: { query: GetReportsQuerySchema },
   responses: {
     200: {
       description: 'Reports fetched successfully',
@@ -103,7 +98,7 @@ registry.registerPath({
   summary: 'Get monthly or range summary per employee',
   tags: ['Reports'],
   security: [{ ApiKeyAuth: [] }],
-  request: { query: GetSummaryQuerySchema },
+  request: { query: GenerateSummaryQuerySchema },
   responses: {
     200: {
       description: 'Summary generated successfully',

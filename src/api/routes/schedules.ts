@@ -16,8 +16,7 @@ function mapScheduleResponse(schedule: any) {
   if (!schedule) return null;
   return {
     id: schedule.id,
-    employeeId: schedule.employeeId,
-    employeeDeviceUid: schedule.employeeDeviceUid,
+    uid: schedule.uid,
     timetableId: schedule.timetableId,
     scheduleDate: schedule.scheduleDate,
     createdAt: schedule.createdAt,
@@ -36,11 +35,11 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
 router.get('/', 
   validateRequest(z.object({ query: GetSchedulesQuerySchema })),
   asyncHandler(async (req: Request, res: Response) => {
-    const { date, employeeId, dateFrom, dateTo } = req.query;
+    const { date, uid, dateFrom, dateTo } = req.query;
 
     const filters = {
       date: date as string,
-      employeeId: employeeId as string,
+      uid: uid ? parseInt(uid as string, 10) : undefined,
       dateFrom: dateFrom as string,
       dateTo: dateTo as string
     };

@@ -13,24 +13,24 @@ datasource db {
 // ─── Device ──────────────────────────────────────────────────────────
 // Registered ZKTeco devices (auto-registered via push or manual)
 model Device {
-  id            Int       @id @default(autoincrement())
-  serialNumber  String    @unique @map("serial_number")
-  name          String?
-  model         String?
-  ipAddress     String?   @map("ip_address")
-  location      String?
-  firmware      String?
-  platform      String?
-  macAddress    String?   @map("mac_address")
-  isOnline      Boolean   @default(false) @map("is_online")
-  lastActivity  DateTime? @map("last_activity")
-  pushEnabled   Boolean   @default(true) @map("push_enabled")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id           Int       @id @default(autoincrement())
+  serialNumber String    @unique @map("serial_number")
+  name         String?
+  model        String?
+  ipAddress    String?   @map("ip_address")
+  location     String?
+  firmware     String?
+  platform     String?
+  macAddress   String?   @map("mac_address")
+  isOnline     Boolean   @default(false) @map("is_online")
+  lastActivity DateTime? @map("last_activity")
+  pushEnabled  Boolean   @default(true) @map("push_enabled")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  userDevices   UserDevice[]
-  commandQueue  CommandQueue[]
+  userDevices  UserDevice[]
+  commandQueue CommandQueue[]
 
   @@map("devices")
 }
@@ -38,20 +38,19 @@ model Device {
 // ─── User ────────────────────────────────────────────────────────────
 // Users/Employees synced to ZKTeco devices
 model User {
-  id          Int       @id @default(autoincrement())
-  uid         Int       @unique                       // ZKTeco internal user ID
-  name        String
-  employeeId  String?   @map("employee_id")           // Your system's employee ID
-  cardNumber  String?   @map("card_number")
-  privilege   Int       @default(0)                   // 0=User, 14=SuperAdmin
-  password    String?
-  status      String    @default("active")            // pending_add, active, pending_delete
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id         Int      @id @default(autoincrement())
+  uid        Int      @unique // ZKTeco internal user ID
+  name       String
+  cardNumber String?  @map("card_number")
+  privilege  Int      @default(0) // 0=User, 14=SuperAdmin
+  password   String?
+  status     String   @default("active") // pending_add, active, pending_delete
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   // Relations
-  userDevices         UserDevice[]
-  biometricTemplates  BiometricTemplate[]
+  userDevices        UserDevice[]
+  biometricTemplates BiometricTemplate[]
 
   @@map("users")
 }
@@ -59,12 +58,12 @@ model User {
 // ─── UserDevice (Many-to-Many) ───────────────────────────────────────
 // Tracks which users are enrolled on which devices
 model UserDevice {
-  userId    Int       @map("user_id")
-  deviceId  Int       @map("device_id")
-  syncedAt  DateTime? @map("synced_at")
+  userId   Int       @map("user_id")
+  deviceId Int       @map("device_id")
+  syncedAt DateTime? @map("synced_at")
 
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  device    Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@id([userId, deviceId])
   @@map("user_devices")
@@ -73,18 +72,18 @@ model UserDevice {
 // ─── BiometricTemplate ──────────────────────────────────────────────────
 // Stores Fingerprint, Face, and Card data for users
 model BiometricTemplate {
-  id          Int       @id @default(autoincrement())
-  uid         Int       @map("uid")
-  type        Int       // 1=Fingerprint, 15=Face, etc.
-  fingerId    Int?      @map("finger_id") // 0-9 for fingers, 0 for face
-  size        Int?
-  valid       Int       @default(1)
-  template    String    @db.Text
-  deviceSn    String?   @map("device_sn") // Device where it was enrolled
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id        Int      @id @default(autoincrement())
+  uid       Int      @map("uid")
+  type      Int // 1=Fingerprint, 15=Face, etc.
+  fingerId  Int?     @map("finger_id") // 0-9 for fingers, 0 for face
+  size      Int?
+  valid     Int      @default(1)
+  template  String   @db.Text
+  deviceSn  String?  @map("device_sn") // Device where it was enrolled
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  user        User      @relation(fields: [uid], references: [uid], onDelete: Cascade)
+  user User @relation(fields: [uid], references: [uid], onDelete: Cascade)
 
   @@unique([uid, type, fingerId])
   @@index([uid])
@@ -94,17 +93,17 @@ model BiometricTemplate {
 // ─── AttendanceLog ───────────────────────────────────────────────────
 // Attendance records received from devices
 model AttendanceLog {
-  id          Int       @id @default(autoincrement())
-  deviceSn    String    @map("device_sn")
+  id          Int      @id @default(autoincrement())
+  deviceSn    String   @map("device_sn")
   uid         Int
-  punchTime   DateTime  @map("punch_time")
-  status      Int?                                    // 0=Check-in, 1=Check-out, etc.
-  verifyType  Int?      @map("verify_type")           // 1=Finger, 15=Face, 4=Card
-  source      String    @default("push")              // 'push' or 'pull'
-  forwarded   Boolean   @default(false)               // Sent to backend apps?
-  isDuplicate Boolean   @default(false) @map("is_duplicate") // Marked by de-duplication filter
-  rawData     String?   @map("raw_data")              // Original data for debugging
-  createdAt   DateTime  @default(now()) @map("created_at")
+  punchTime   DateTime @map("punch_time")
+  status      Int? // 0=Check-in, 1=Check-out, etc.
+  verifyType  Int?     @map("verify_type") // 1=Finger, 15=Face, 4=Card
+  source      String   @default("push") // 'push' or 'pull'
+  forwarded   Boolean  @default(false) // Sent to backend apps?
+  isDuplicate Boolean  @default(false) @map("is_duplicate") // Marked by de-duplication filter
+  rawData     String?  @map("raw_data") // Original data for debugging
+  createdAt   DateTime @default(now()) @map("created_at")
 
   @@unique([deviceSn, uid, punchTime])
   @@index([deviceSn])
@@ -119,8 +118,8 @@ model AttendanceLog {
 model Webhook {
   id            Int       @id @default(autoincrement())
   url           String
-  events        String    @default("*")               // 'attendance', 'device_status', etc.
-  secret        String?                               // HMAC signing secret
+  events        String    @default("*") // 'attendance', 'device_status', etc.
+  secret        String? // HMAC signing secret
   isActive      Boolean   @default(true) @map("is_active")
   lastTriggered DateTime? @map("last_triggered")
   createdAt     DateTime  @default(now()) @map("created_at")
@@ -135,13 +134,13 @@ model CommandQueue {
   deviceSn    String    @map("device_sn")
   commandType String    @map("command_type")
   commandData String    @map("command_data")
-  status      String    @default("pending")           // pending, sent, completed, failed
+  status      String    @default("pending") // pending, sent, completed, failed
   result      String?
   createdAt   DateTime  @default(now()) @map("created_at")
   sentAt      DateTime? @map("sent_at")
   completedAt DateTime? @map("completed_at")
 
-  device      Device?   @relation(fields: [deviceSn], references: [serialNumber])
+  device Device? @relation(fields: [deviceSn], references: [serialNumber])
 
   @@index([deviceSn, status])
   @@map("command_queue")
@@ -150,15 +149,15 @@ model CommandQueue {
 // ─── WebhookQueue ────────────────────────────────────────────────────
 // Queue for outbound webhook deliveries to the Main App
 model WebhookQueue {
-  id          Int       @id @default(autoincrement())
-  url         String
-  eventType   String    @map("event_type")
-  payload     String    // Stored as JSON string
-  status      String    @default("pending")           // pending, success, failed
-  retryCount  Int       @default(0) @map("retry_count")
-  lastError   String?   @map("last_error")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id         Int      @id @default(autoincrement())
+  url        String
+  eventType  String   @map("event_type")
+  payload    String // Stored as JSON string
+  status     String   @default("pending") // pending, success, failed
+  retryCount Int      @default(0) @map("retry_count")
+  lastError  String?  @map("last_error")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@index([status])
   @@map("webhook_queue")
@@ -167,23 +166,23 @@ model WebhookQueue {
 // ─── ShiftTimetable ──────────────────────────────────────────────────
 // Defines shift working hours and valid check-in/out windows
 model ShiftTimetable {
-  id                        Int       @id @default(autoincrement())
-  name                      String
-  shiftStartOffset          Int       @map("shift_start_offset")          // Minutes from midnight
-  shiftEndOffset            Int       @map("shift_end_offset")            // Minutes from midnight
-  checkInStartOffset        Int       @map("check_in_start_offset")
-  checkInEndOffset          Int       @map("check_in_end_offset")
-  checkOutStartOffset       Int       @map("check_out_start_offset")
-  checkOutEndOffset         Int       @map("check_out_end_offset")
-  graceMinutes              Int       @default(15) @map("grace_minutes")
-  overtimeThresholdMinutes  Int       @default(30) @map("overtime_threshold_minutes")
-  breakMinutes              Int       @default(0)  @map("break_minutes")
-  isActive                  Boolean   @default(true) @map("is_active")
-  createdAt                 DateTime  @default(now()) @map("created_at")
-  updatedAt                 DateTime  @updatedAt @map("updated_at")
+  id                       Int      @id @default(autoincrement())
+  name                     String
+  shiftStartOffset         Int      @map("shift_start_offset") // Minutes from midnight
+  shiftEndOffset           Int      @map("shift_end_offset") // Minutes from midnight
+  checkInStartOffset       Int      @map("check_in_start_offset")
+  checkInEndOffset         Int      @map("check_in_end_offset")
+  checkOutStartOffset      Int      @map("check_out_start_offset")
+  checkOutEndOffset        Int      @map("check_out_end_offset")
+  graceMinutes             Int      @default(15) @map("grace_minutes")
+  overtimeThresholdMinutes Int      @default(30) @map("overtime_threshold_minutes")
+  breakMinutes             Int      @default(0) @map("break_minutes")
+  isActive                 Boolean  @default(true) @map("is_active")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
 
-  schedules                 EmployeeSchedule[]
-  reports                   DailyAttendanceReport[]
+  schedules EmployeeSchedule[]
+  reports   DailyAttendanceReport[]
 
   @@map("shift_timetables")
 }
@@ -191,54 +190,52 @@ model ShiftTimetable {
 // ─── EmployeeSchedule ────────────────────────────────────────────────
 // Maps an employee to a shift on a specific calendar date
 model EmployeeSchedule {
-  id                Int       @id @default(autoincrement())
-  employeeId        String    @map("employee_id")
-  employeeDeviceUid Int       @map("employee_device_uid")
-  timetableId       Int       @map("timetable_id")
-  scheduleDate      DateTime  @db.Date @map("schedule_date")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  id           Int      @id @default(autoincrement())
+  uid          Int      @map("employee_device_uid")
+  timetableId  Int      @map("timetable_id")
+  scheduleDate DateTime @map("schedule_date") @db.Date
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  timetable         ShiftTimetable @relation(fields: [timetableId], references: [id])
+  timetable ShiftTimetable @relation(fields: [timetableId], references: [id])
 
-  @@unique([employeeId, scheduleDate])
+  @@unique([uid, scheduleDate])
   @@index([scheduleDate])
-  @@index([employeeDeviceUid])
+  @@index([uid])
   @@map("employee_schedules")
 }
 
 // ─── DailyAttendanceReport ───────────────────────────────────────────
 // Final calculated output consumed by payroll / main app
 model DailyAttendanceReport {
-  id                    Int       @id @default(autoincrement())
-  employeeId            String    @map("employee_id")
-  employeeDeviceUid     Int       @map("employee_device_uid")
-  scheduleDate          DateTime  @db.Date @map("schedule_date")
-  timetableId           Int       @map("timetable_id")
-  
-  actualCheckIn         DateTime? @map("actual_check_in")
-  actualCheckOut        DateTime? @map("actual_check_out")
-  
-  workingMinutes        Int       @default(0) @map("working_minutes")
-  lateMinutes           Int       @default(0) @map("late_minutes")
-  earlyLeaveMinutes     Int       @default(0) @map("early_leave_minutes")
-  overtimeMinutes       Int       @default(0) @map("overtime_minutes")
-  breakMinutes          Int       @default(0) @map("break_minutes")
-  middlePunchCount      Int       @default(0) @map("middle_punch_count")
-  
-  status                String    // PRESENT, ABSENT, LATE, EARLY_LEAVE, MISSING_PUNCH, EXCEPTION
-  anomalyNotes          String?   @map("anomaly_notes")
-  
-  isManualOverride      Boolean   @default(false) @map("is_manual_override")
-  manualOvertimeMinutes Int       @default(0) @map("manual_overtime_minutes")
-  manualNote            String?   @map("manual_note")
-  
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
+  id           Int      @id @default(autoincrement())
+  uid          Int      @map("employee_device_uid")
+  scheduleDate DateTime @map("schedule_date") @db.Date
+  timetableId  Int      @map("timetable_id")
 
-  timetable             ShiftTimetable @relation(fields: [timetableId], references: [id])
+  actualCheckIn  DateTime? @map("actual_check_in")
+  actualCheckOut DateTime? @map("actual_check_out")
 
-  @@unique([employeeId, scheduleDate])
+  workingMinutes    Int @default(0) @map("working_minutes")
+  lateMinutes       Int @default(0) @map("late_minutes")
+  earlyLeaveMinutes Int @default(0) @map("early_leave_minutes")
+  overtimeMinutes   Int @default(0) @map("overtime_minutes")
+  breakMinutes      Int @default(0) @map("break_minutes")
+  middlePunchCount  Int @default(0) @map("middle_punch_count")
+
+  status       String // PRESENT, ABSENT, LATE, EARLY_LEAVE, MISSING_PUNCH, EXCEPTION
+  anomalyNotes String? @map("anomaly_notes")
+
+  isManualOverride      Boolean @default(false) @map("is_manual_override")
+  manualOvertimeMinutes Int     @default(0) @map("manual_overtime_minutes")
+  manualNote            String? @map("manual_note")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  timetable ShiftTimetable @relation(fields: [timetableId], references: [id])
+
+  @@unique([uid, scheduleDate])
   @@index([scheduleDate])
   @@index([status])
   @@map("daily_attendance_reports")
@@ -247,12 +244,11 @@ model DailyAttendanceReport {
 // ─── SystemConfig ────────────────────────────────────────────────────
 // System-wide configuration for the calculation engine
 model SystemConfig {
-  id          Int       @id @default(autoincrement())
-  key         String    @unique
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
   value       String
   description String?
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("system_configs")
 }
-

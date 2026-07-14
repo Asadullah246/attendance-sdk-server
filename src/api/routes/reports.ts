@@ -6,8 +6,8 @@ import { successResponse, errorResponse } from '../../utils/helpers';
 import logger from '../../utils/logger';
 import { validateRequest } from '../middleware/validate';
 import { 
-  GetDailyReportsQuerySchema, 
-  GetSummaryQuerySchema, 
+  GetReportsQuerySchema, 
+  GenerateSummaryQuerySchema, 
   CalculateReportsBodySchema, 
   OverrideReportBodySchema, 
   ReportIdParamSchema 
@@ -23,14 +23,14 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
   };
 
 router.get('/daily', 
-  validateRequest(z.object({ query: GetDailyReportsQuerySchema })),
+  validateRequest(z.object({ query: GetReportsQuerySchema })),
   asyncHandler(async (req: Request, res: Response) => {
-    const { date, employeeId, status, dateFrom, dateTo } = req.query;
+    const { date, uid, status, dateFrom, dateTo } = req.query;
 
     const where: any = {};
 
-    if (employeeId) {
-      where.employeeId = employeeId;
+    if (uid) {
+      where.uid = parseInt(uid as string, 10);
     }
     
     if (status) {
@@ -54,7 +54,7 @@ router.get('/daily',
           }
         }
       },
-      orderBy: [{ scheduleDate: 'desc' }, { employeeId: 'asc' }]
+      orderBy: [{ scheduleDate: 'desc' }, { uid: 'asc' }]
     });
 
     res.json(successResponse(reports, 'Reports fetched successfully'));
@@ -62,11 +62,12 @@ router.get('/daily',
 );
 
 router.get('/summary', 
-  validateRequest(z.object({ query: GetSummaryQuerySchema })),
+  validateRequest(z.object({ query: GenerateSummaryQuerySchema })),
   asyncHandler(async (req: Request, res: Response) => {
-    const { employeeId, dateFrom, dateTo } = req.query;
+    const { uid, dateFrom, dateTo } = req.query;
 
-    const where: any = { employeeId };
+    const uidNum = parseInt(uid as string, 10);
+    const where: any = { uid: uidNum };
 
     if (dateFrom || dateTo) {
       where.scheduleDate = {};
@@ -77,7 +78,7 @@ router.get('/summary',
     const reports = await prisma.dailyAttendanceReport.findMany({ where });
 
     const summary = {
-      employeeId,
+      uid: uidNum,
       totalDays: reports.length,
       totalPresentDays: 0,
       totalAbsentDays: 0,

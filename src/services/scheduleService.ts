@@ -4,15 +4,13 @@ import logger from '../utils/logger';
 const prisma = getPrisma();
 
 export interface AssignScheduleInput {
-  employeeId: string;
-  employeeDeviceUid: number;
+  uid: number;
   timetableId: number;
   scheduleDate: string; // ISO format date 'YYYY-MM-DD'
 }
 
 export interface BulkAssignInput {
-  employeeIds: string[];
-  employeeDeviceUids: number[];
+  uids: number[];
   timetableId: number;
   dateFrom: string; // ISO format date 'YYYY-MM-DD'
   dateTo: string;   // ISO format date 'YYYY-MM-DD'
@@ -28,7 +26,7 @@ export class ScheduleService {
     // Check conflict
     const existing = await prisma.employeeSchedule.findFirst({
       where: {
-        employeeId: data.employeeId,
+        uid: data.uid,
         scheduleDate: targetDate
       }
     });
@@ -39,8 +37,7 @@ export class ScheduleService {
 
     return prisma.employeeSchedule.create({
       data: {
-        employeeId: data.employeeId,
-        employeeDeviceUid: data.employeeDeviceUid,
+        uid: data.uid,
         timetableId: data.timetableId,
         scheduleDate: targetDate
       }
@@ -51,10 +48,6 @@ export class ScheduleService {
    * Bulk assign schedules to multiple employees over a date range
    */
   static async bulkAssignSchedule(data: BulkAssignInput) {
-    if (data.employeeIds.length !== data.employeeDeviceUids.length) {
-      throw new Error('Mismatched employee array lengths');
-    }
-
     const startDate = new Date(data.dateFrom);
     const endDate = new Date(data.dateTo);
 
@@ -67,10 +60,9 @@ export class ScheduleService {
     // Loop through each date
     let currentDate = new Date(startDate);
     while (currentDate <= endDate) {
-      for (let i = 0; i < data.employeeIds.length; i++) {
+      for (let i = 0; i < data.uids.length; i++) {
         recordsToCreate.push({
-          employeeId: data.employeeIds[i],
-          employeeDeviceUid: data.employeeDeviceUids[i],
+          uid: data.uids[i],
           timetableId: data.timetableId,
           scheduleDate: new Date(currentDate)
         });
@@ -84,20 +76,19 @@ export class ScheduleService {
       try {
         await prisma.employeeSchedule.upsert({
           where: {
-            employeeId_scheduleDate: {
-              employeeId: record.employeeId,
+            uid_scheduleDate: {
+              uid: record.uid,
               scheduleDate: record.scheduleDate
             }
           },
           update: {
-            timetableId: record.timetableId,
-            employeeDeviceUid: record.employeeDeviceUid
+            timetableId: record.timetableId
           },
           create: record
         });
         createdCount++;
       } catch (error) {
-        logger.warn(`[ScheduleService] Failed to assign bulk schedule for ${record.employeeId} on ${record.scheduleDate.toISOString()}`);
+        logger.warn(`[ScheduleService] Failed to assign bulk schedule for ${record.uid} on ${record.scheduleDate.toISOString()}`);
       }
     }
 
@@ -116,11 +107,11 @@ export class ScheduleService {
   /**
    * Fetch schedules based on filters
    */
-  static async getSchedules(filters: { date?: string; employeeId?: string; dateFrom?: string; dateTo?: string }) {
+  static async getSchedules(filters: { date?: string; uid?: number; dateFrom?: string; dateTo?: string }) {
     const where: any = {};
 
-    if (filters.employeeId) {
-      where.employeeId = filters.employeeId;
+    if (filters.uid) {
+      where.uid = filters.uid;
     }
 
     if (filters.date) {

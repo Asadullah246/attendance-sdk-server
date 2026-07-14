@@ -6,21 +6,19 @@ extendZodWithOpenApi(z);
 
 export const GetSchedulesQuerySchema = z.object({
   date: z.string().optional().openapi({ description: 'Specific date (YYYY-MM-DD)', example: '2023-10-25' }),
-  employeeId: z.string().optional().openapi({ description: 'Employee ID', example: 'EMP1001' }),
+  uid: z.number().int().optional().openapi({ description: 'Employee UID', example: 1001 }),
   dateFrom: z.string().optional().openapi({ description: 'Start date (YYYY-MM-DD)', example: '2023-10-01' }),
   dateTo: z.string().optional().openapi({ description: 'End date (YYYY-MM-DD)', example: '2023-10-31' })
 });
 
 export const AssignScheduleBodySchema = z.object({
-  employeeId: z.string().openapi({ example: 'EMP1001' }),
-  employeeDeviceUid: z.number().int().openapi({ example: 1 }),
+  uid: z.number().int().openapi({ example: 1001 }),
   scheduleDate: z.string().openapi({ description: 'Date (YYYY-MM-DD)', example: '2023-10-25' }),
   timetableId: z.number().int().openapi({ example: 1 })
 });
 
 export const BulkAssignScheduleBodySchema = z.object({
-  employeeIds: z.array(z.string()).openapi({ example: ['EMP1001', 'EMP1002'] }),
-  employeeDeviceUids: z.array(z.number().int()).openapi({ example: [1, 2] }),
+  uids: z.array(z.number().int()).openapi({ example: [1001, 1002] }),
   startDate: z.string().openapi({ description: 'Start Date (YYYY-MM-DD)', example: '2023-10-01' }),
   endDate: z.string().openapi({ description: 'End Date (YYYY-MM-DD)', example: '2023-10-31' }),
   timetableId: z.number().int().openapi({ example: 1 }),
@@ -35,8 +33,7 @@ import { ShiftSchema } from './shift.dto';
 
 export const ScheduleSchema = z.object({
   id: z.number().int().openapi({ example: 1 }),
-  employeeId: z.string().openapi({ example: 'EMP1001' }),
-  employeeDeviceUid: z.number().int().openapi({ example: 1 }),
+  uid: z.number().int().openapi({ example: 1001 }),
   timetableId: z.number().int().openapi({ example: 1 }),
   scheduleDate: z.string().openapi({ example: '2023-10-25T00:00:00.000Z' }),
   createdAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' }),
