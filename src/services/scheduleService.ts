@@ -12,8 +12,9 @@ export interface AssignScheduleInput {
 export interface BulkAssignInput {
   uids: number[];
   timetableId: number;
-  dateFrom: string; // ISO format date 'YYYY-MM-DD'
-  dateTo: string;   // ISO format date 'YYYY-MM-DD'
+  startDate: string; // ISO format date 'YYYY-MM-DD'
+  endDate: string;   // ISO format date 'YYYY-MM-DD'
+  excludeDays?: number[];
 }
 
 export class ScheduleService {
@@ -48,24 +49,29 @@ export class ScheduleService {
    * Bulk assign schedules to multiple employees over a date range
    */
   static async bulkAssignSchedule(data: BulkAssignInput) {
-    const startDate = new Date(data.dateFrom);
-    const endDate = new Date(data.dateTo);
+    const start = new Date(data.startDate);
+    const end = new Date(data.endDate);
 
-    if (startDate > endDate) {
-      throw new Error('dateFrom cannot be after dateTo');
+    if (start > end) {
+      throw new Error('startDate cannot be after endDate');
     }
 
     const recordsToCreate = [];
 
     // Loop through each date
-    let currentDate = new Date(startDate);
-    while (currentDate <= endDate) {
-      for (let i = 0; i < data.uids.length; i++) {
-        recordsToCreate.push({
-          uid: data.uids[i],
-          timetableId: data.timetableId,
-          scheduleDate: new Date(currentDate)
-        });
+    let currentDate = new Date(start);
+    while (currentDate <= end) {
+      // Check if current day of week is in excludeDays (e.g. 0=Sun, 6=Sat)
+      const isExcluded = data.excludeDays?.includes(currentDate.getDay());
+      
+      if (!isExcluded) {
+        for (let i = 0; i < data.uids.length; i++) {
+          recordsToCreate.push({
+            uid: data.uids[i],
+            timetableId: data.timetableId,
+            scheduleDate: new Date(currentDate)
+          });
+        }
       }
       currentDate.setDate(currentDate.getDate() + 1);
     }
