@@ -18,6 +18,8 @@ import scheduleRoutes from './api/routes/schedules';
 import reportRoutes from './api/routes/reports';
 import pushRouter from './push/iclock';
 import { requireApiKey } from './api/middleware/auth';
+import swaggerUi from 'swagger-ui-express';
+import { generateSwaggerSpec } from './config/swagger';
 
 const app = express();
 
@@ -62,7 +64,16 @@ app.get('/health', (_req: Request, res: Response) => {
 app.use('/dashboard', express.static(path.join(process.cwd(), 'public')));
 
 // ─── API Routes ──────────────────────────────────────────────────────
-// Unprotected APIs (Authentication)
+
+// Swagger Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(generateSwaggerSpec(), {
+  swaggerOptions: {
+    persistAuthorization: true,
+  },
+  customSiteTitle: 'ZKTeco SDK API Docs',
+}));
+
+// Basic Auth generation route (Phase 3)
 app.use('/api/v1/auth', authRoutes);
 
 // Protected APIs for the Main Application
