@@ -16,6 +16,7 @@ import configRoutes from './api/routes/configs';
 import shiftRoutes from './api/routes/shifts';
 import scheduleRoutes from './api/routes/schedules';
 import reportRoutes from './api/routes/reports';
+import holidayRoutes from './api/routes/holidays';
 import pushRouter from './push/iclock';
 import { requireApiKey } from './api/middleware/auth';
 import swaggerUi from 'swagger-ui-express';
@@ -87,6 +88,7 @@ app.use('/api/v1/configs', configRoutes);
 app.use('/api/v1/shifts', shiftRoutes);
 app.use('/api/v1/schedules', scheduleRoutes);
 app.use('/api/v1/reports', reportRoutes);
+app.use('/api/v1/holidays', holidayRoutes);
 
 // Command routes (Phase 3 — Push Protocol commands)
 app.use('/api/v1/commands', commandRoutes);

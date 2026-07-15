@@ -253,3 +253,18 @@ model SystemConfig {
 
   @@map("system_configs")
 }
+
+// ─── Holiday ─────────────────────────────────────────────────────────
+// Global holidays to prevent auto-scheduling
+model Holiday {
+  id          Int      @id @default(autoincrement())
+  type        String   @default("global") // e.g. 'global', 'weekend'
+  name        String
+  startDate   DateTime @db.Date
+  endDate     DateTime @db.Date
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("holidays")
+}

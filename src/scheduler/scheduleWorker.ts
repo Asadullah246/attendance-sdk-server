@@ -49,17 +49,39 @@ export class ScheduleWorker {
       const endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + 30);
 
+      // Fetch holidays within this 30-day window
+      const holidays = await prisma.holiday.findMany({
+        where: {
+          OR: [
+            {
+              startDate: { lte: endDate },
+              endDate: { gte: startDate }
+            }
+          ]
+        }
+      });
+
       const recordsToCreate: { uid: number; timetableId: number; scheduleDate: Date }[] = [];
 
       // Generate the daily records in memory
       let currentDate = new Date(startDate);
       while (currentDate <= endDate) {
-        for (const user of users) {
-          recordsToCreate.push({
-            uid: user.uid,
-            timetableId: user.defaultTimetableId as number,
-            scheduleDate: new Date(currentDate)
-          });
+        const currentMs = currentDate.getTime();
+        
+        const isHoliday = holidays.some(h => {
+          const startMs = new Date(h.startDate).setHours(0,0,0,0);
+          const endMs = new Date(h.endDate).setHours(0,0,0,0);
+          return currentMs >= startMs && currentMs <= endMs;
+        });
+
+        if (!isHoliday) {
+          for (const user of users) {
+            recordsToCreate.push({
+              uid: user.uid,
+              timetableId: user.defaultTimetableId as number,
+              scheduleDate: new Date(currentDate)
+            });
+          }
         }
         currentDate.setDate(currentDate.getDate() + 1);
       }
