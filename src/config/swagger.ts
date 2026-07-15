@@ -57,6 +57,9 @@ export function generateSwaggerSpec() {
       title: 'ZKTeco SDK Middleware API',
       description: 'API documentation for the ZKTeco SDK Middleware Server. This API bridges ZKTeco biometric devices with external systems, handling device registration, real-time push data, shift management, and attendance calculations.',
     },
-    servers: [{ url: 'http://localhost:8081', description: 'Development server' }],
+    servers: [
+      { url: 'https://attendance.genify.live', description: 'Production server' },
+      { url: 'http://localhost:8081', description: 'Development server' }
+    ],
   });
 }
