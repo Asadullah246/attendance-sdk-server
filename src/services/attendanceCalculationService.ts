@@ -47,13 +47,24 @@ export class AttendanceCalculationService {
       };
     }
 
+    if (rawLogs.length === 2 && breakMinutes > 0) {
+      status = 'MISSING_PUNCH';
+      anomalyNotes.push(`Only 2 punches found. Missing break punches. Admin review required.`);
+    }
+
     if (rawLogs.length % 2 !== 0) {
       status = 'MISSING_PUNCH';
       anomalyNotes.push(`Odd number of punches (${rawLogs.length}). Admin review required.`);
     }
 
     let actualCheckIn = rawLogs[0].punchTime;
-    let actualCheckOut = rawLogs.length > 1 ? rawLogs[rawLogs.length - 1].punchTime : null;
+    
+    // Only trust actualCheckOut if there is an even number of punches
+    // Because if it's odd, the last punch is an IN punch, not an OUT punch.
+    let actualCheckOut = null;
+    if (rawLogs.length > 1 && rawLogs.length % 2 === 0) {
+      actualCheckOut = rawLogs[rawLogs.length - 1].punchTime;
+    }
 
     // Process sequential pairs
     const pairsCount = Math.floor(rawLogs.length / 2);
@@ -62,15 +73,11 @@ export class AttendanceCalculationService {
       const outPunch = rawLogs[i+1].punchTime.getTime();
       const durationMins = Math.floor((outPunch - inPunch) / 60000);
       
-      if (durationMins >= 480) { // 8 hours continuous
-        if (status === 'PRESENT') status = 'EXCEPTION';
-        anomalyNotes.push(`Continuous segment > 8 hours (${durationMins}m).`);
-      }
-      
       workingMinutes += durationMins;
     }
 
-    if (actualCheckIn) {
+    // Calculate Lateness
+    if (actualCheckIn && status !== 'MISSING_PUNCH') {
       const lateness = Math.floor((actualCheckIn.getTime() - shiftStart.getTime()) / 60000);
       if (lateness > timetable.graceMinutes) {
         lateMinutes = lateness;
@@ -78,7 +85,8 @@ export class AttendanceCalculationService {
       }
     }
 
-    if (actualCheckOut) {
+    // Calculate Early Leave and Overtime ONLY if actualCheckOut is valid
+    if (actualCheckOut && status !== 'MISSING_PUNCH') {
       const earlyLeave = Math.floor((shiftEnd.getTime() - actualCheckOut.getTime()) / 60000);
       if (earlyLeave > 0) {
         earlyLeaveMinutes = earlyLeave;
