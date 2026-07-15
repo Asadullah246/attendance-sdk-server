@@ -4,6 +4,8 @@ import { successResponse } from '../../utils/helpers';
 import { validateRequest } from '../middleware/validate';
 import { GetAttendanceQuerySchema, CreateAttendanceBodySchema } from '../dtos/attendance.dto';
 import { WebhookService } from '../../services/webhookService';
+import { AttendanceCalculationService } from '../../services/attendanceCalculationService';
+import logger from '../../utils/logger';
 import { z } from 'zod';
 
 const router = Router();
@@ -102,6 +104,19 @@ router.post('/',
 
     // Trigger webhook so the main app syncs the manual punch
     WebhookService.queueWebhook('attendance', log);
+
+    // --- LIVE CALCULATION ---
+    const todayStr = punchTimeDate.toISOString().split('T')[0];
+    const yesterdayDate = new Date(punchTimeDate);
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
+
+    AttendanceCalculationService.calculateLiveForEmployee(uid, todayStr).catch(e => 
+      logger.error(`[LiveCalc] Error for ${uid} on ${todayStr}`, { error: e.message })
+    );
+    AttendanceCalculationService.calculateLiveForEmployee(uid, yesterdayStr).catch(e => 
+      logger.error(`[LiveCalc] Error for ${uid} on ${yesterdayStr}`, { error: e.message })
+    );
 
     res.json(successResponse(log, 'Manual attendance log created successfully'));
   })

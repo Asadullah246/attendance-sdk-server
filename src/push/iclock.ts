@@ -3,6 +3,7 @@ import logger from '../utils/logger';
 import { saveDeviceData } from '../utils/dataLogger';
 import { getPrisma } from '../database/prisma';
 import { WebhookService } from '../services/webhookService';
+import { AttendanceCalculationService } from '../services/attendanceCalculationService';
 import config from '../config';
 
 const router = Router();
@@ -127,6 +128,22 @@ router.post('/cdata', async (req: Request, res: Response) => {
             
             // Trigger Webhook
             WebhookService.queueWebhook('attendance', log);
+
+            // --- LIVE CALCULATION ---
+            // Trigger calculation asynchronously for Today and Yesterday
+            // We do Yesterday to safely catch punches belonging to night-shifts
+            const todayStr = punchTimeDate.toISOString().split('T')[0];
+            const yesterdayDate = new Date(punchTimeDate);
+            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
+
+            AttendanceCalculationService.calculateLiveForEmployee(uid, todayStr).catch(e => 
+              logger.error(`[LiveCalc] Error for ${uid} on ${todayStr}`, { error: e.message })
+            );
+            AttendanceCalculationService.calculateLiveForEmployee(uid, yesterdayStr).catch(e => 
+              logger.error(`[LiveCalc] Error for ${uid} on ${yesterdayStr}`, { error: e.message })
+            );
+
           } catch (e) {
             logger.error(`[Push] Failed to save attendance`, { error: (e as Error).message });
             dbHasError = true;

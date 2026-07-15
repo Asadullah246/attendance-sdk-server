@@ -170,7 +170,115 @@ export class AttendanceCalculationService {
   }
 
   /**
-   * Main entry point to run calculation for a specific date.
+   * Main entry point to run calculation for a specific employee on a specific date in real-time.
+   */
+  static async calculateLiveForEmployee(uid: number, dateStr: string) {
+    const targetDate = new Date(`${dateStr}T00:00:00.000Z`);
+
+    const schedule = await prisma.employeeSchedule.findUnique({
+      where: {
+        uid_scheduleDate: {
+          uid,
+          scheduleDate: targetDate
+        }
+      },
+      include: { timetable: true }
+    });
+
+    if (!schedule) return null;
+
+    const logsWindowStart = new Date(targetDate);
+    logsWindowStart.setDate(logsWindowStart.getDate() - 1);
+    
+    const logsWindowEnd = new Date(targetDate);
+    logsWindowEnd.setDate(logsWindowEnd.getDate() + 2);
+
+    const rawLogsDb = await prisma.attendanceLog.findMany({
+      where: {
+        uid,
+        isDuplicate: false,
+        punchTime: {
+          gte: logsWindowStart,
+          lte: logsWindowEnd
+        }
+      },
+      orderBy: { punchTime: 'asc' }
+    });
+
+    const [sYear, sMonth, sDay] = schedule.scheduleDate.toISOString().split('T')[0].split('-');
+    const localMidnight = new Date(parseInt(sYear, 10), parseInt(sMonth, 10) - 1, parseInt(sDay, 10), 0, 0, 0, 0);
+
+    const windowStart = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkInStartOffset);
+    const windowEnd = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkOutEndOffset + 240);
+
+    const rawLogs = rawLogsDb.filter(log => 
+      log.punchTime.getTime() >= windowStart.getTime() && 
+      log.punchTime.getTime() <= windowEnd.getTime()
+    );
+
+    if (rawLogs.length === 0) return null; // Let markAbsentees handle this
+
+    const result = this.calculateForEmployee(schedule, schedule.timetable, rawLogs);
+
+    const existingReport = await prisma.dailyAttendanceReport.findUnique({
+      where: {
+        uid_scheduleDate: { uid, scheduleDate: targetDate }
+      }
+    });
+
+    if (existingReport && existingReport.isManualOverride) {
+      return null;
+    }
+
+    const upsertedReport = await prisma.dailyAttendanceReport.upsert({
+      where: {
+        uid_scheduleDate: { uid, scheduleDate: targetDate }
+      },
+      update: {
+        timetableId: schedule.timetableId,
+        actualCheckIn: result.actualCheckIn,
+        actualCheckOut: result.actualCheckOut,
+        workingMinutes: result.workingMinutes,
+        lateMinutes: result.lateMinutes,
+        earlyLeaveMinutes: result.earlyLeaveMinutes,
+        overtimeMinutes: result.overtimeMinutes,
+        breakMinutes: result.breakMinutes,
+        middlePunchCount: result.middlePunchCount,
+        status: result.status,
+        anomalyNotes: result.anomalyNotes
+      },
+      create: {
+        uid: schedule.uid,
+        scheduleDate: schedule.scheduleDate,
+        timetableId: schedule.timetableId,
+        actualCheckIn: result.actualCheckIn,
+        actualCheckOut: result.actualCheckOut,
+        workingMinutes: result.workingMinutes,
+        lateMinutes: result.lateMinutes,
+        earlyLeaveMinutes: result.earlyLeaveMinutes,
+        overtimeMinutes: result.overtimeMinutes,
+        breakMinutes: result.breakMinutes,
+        middlePunchCount: result.middlePunchCount,
+        status: result.status,
+        anomalyNotes: result.anomalyNotes
+      }
+    });
+
+    await WebhookService.queueWebhook('attendance.calculated', {
+      event: 'attendance.calculated',
+      uid: schedule.uid,
+      date: dateStr,
+      status: result.status,
+      workingMinutes: result.workingMinutes,
+      lateMinutes: result.lateMinutes,
+      overtimeMinutes: result.overtimeMinutes
+    });
+
+    return upsertedReport;
+  }
+
+  /**
+   * Batch entry point to run calculation for a specific date.
    */
   static async calculateForDate(dateStr: string) {
     // Parse as UTC midnight to correctly match DB @db.Date fields
