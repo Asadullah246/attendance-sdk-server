@@ -209,7 +209,7 @@ export class AttendanceCalculationService {
     const localMidnight = new Date(parseInt(sYear, 10), parseInt(sMonth, 10) - 1, parseInt(sDay, 10), 0, 0, 0, 0);
 
     const windowStart = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkInStartOffset);
-    const windowEnd = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkOutEndOffset + 240);
+    const windowEnd = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkOutEndOffset);
 
     const rawLogs = rawLogsDb.filter(log => 
       log.punchTime.getTime() >= windowStart.getTime() && 
@@ -326,7 +326,7 @@ export class AttendanceCalculationService {
 
         // Build an overall window from checkInStart to checkOutEnd
         const windowStart = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkInStartOffset);
-        const windowEnd = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkOutEndOffset + 240);
+        const windowEnd = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkOutEndOffset);
 
         // Filter the grouped logs for the exact window
         const userLogs = logsByUid[schedule.uid] || [];
