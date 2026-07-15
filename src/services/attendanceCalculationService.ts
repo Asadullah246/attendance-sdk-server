@@ -122,31 +122,46 @@ export class AttendanceCalculationService {
 
     let processedCount = 0;
 
+    // Bulk-fetch all logs for the window (Day before and day after to safely capture all shifts)
+    const logsWindowStart = new Date(targetDate);
+    logsWindowStart.setDate(logsWindowStart.getDate() - 1);
+    
+    const logsWindowEnd = new Date(targetDate);
+    logsWindowEnd.setDate(logsWindowEnd.getDate() + 2);
+
+    const allLogs = await prisma.attendanceLog.findMany({
+      where: {
+        isDuplicate: false,
+        punchTime: {
+          gte: logsWindowStart,
+          lte: logsWindowEnd
+        }
+      },
+      orderBy: { punchTime: 'asc' }
+    });
+
+    // Group logs by uid in memory
+    const logsByUid: Record<number, any[]> = {};
+    for (const log of allLogs) {
+      if (!logsByUid[log.uid]) logsByUid[log.uid] = [];
+      logsByUid[log.uid].push(log);
+    }
+
     for (const schedule of schedules) {
       try {
         const [sYear, sMonth, sDay] = schedule.scheduleDate.toISOString().split('T')[0].split('-');
         const localMidnight = new Date(parseInt(sYear, 10), parseInt(sMonth, 10) - 1, parseInt(sDay, 10), 0, 0, 0, 0);
 
-        // Build an overall window from checkInStart to checkOutEnd for DB query
+        // Build an overall window from checkInStart to checkOutEnd
         const windowStart = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkInStartOffset);
-        // We add 4 hours buffer to the checkOutEnd to capture outside punches instead of a full 24h which could overlap with next shift
         const windowEnd = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkOutEndOffset + 240);
 
-        logger.info(`[DEBUG] scheduleDate: ${schedule.scheduleDate.toISOString()}, localMidnight: ${localMidnight.toISOString()}`);
-        logger.info(`[DEBUG] windowStart: ${windowStart.toISOString()}, windowEnd: ${windowEnd.toISOString()}`);
-
-        // Fetch raw logs
-        const rawLogs = await prisma.attendanceLog.findMany({
-          where: {
-            uid: schedule.uid,
-            isDuplicate: false, // exclude duplicates
-            punchTime: {
-              gte: windowStart,
-              lte: windowEnd
-            }
-          },
-          orderBy: { punchTime: 'asc' }
-        });
+        // Filter the grouped logs for the exact window
+        const userLogs = logsByUid[schedule.uid] || [];
+        const rawLogs = userLogs.filter(log => 
+          log.punchTime.getTime() >= windowStart.getTime() && 
+          log.punchTime.getTime() <= windowEnd.getTime()
+        );
 
         // Skip if 0 logs - handle in markAbsentees instead
         if (rawLogs.length === 0) continue;

@@ -45,6 +45,7 @@ model User {
   privilege  Int      @default(0) // 0=User, 14=SuperAdmin
   password   String?
   status     String   @default("active") // pending_add, active, pending_delete
+  defaultTimetableId Int? @map("default_timetable_id")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 

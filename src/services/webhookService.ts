@@ -46,12 +46,12 @@ export class WebhookService {
           ]
         },
         orderBy: { createdAt: 'asc' },
-        take: 20 // Process in batches
+        take: 100 // Process in larger batches
       });
 
       if (queue.length === 0) return;
 
-      for (const item of queue) {
+      const promises = queue.map(async (item) => {
         try {
           const response = await fetch(item.url, {
             method: 'POST',
@@ -91,7 +91,9 @@ export class WebhookService {
           });
           logger.warn(`[WebhookService] Delivery failed for webhook ${item.id} to ${item.url} (Attempt ${newRetryCount})`, { error: errorMessage });
         }
-      }
+      });
+
+      await Promise.allSettled(promises);
     } catch (error) {
       logger.error(`[WebhookService] Queue processing error`, { error: (error as Error).message });
     }

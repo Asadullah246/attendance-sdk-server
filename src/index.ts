@@ -5,6 +5,7 @@ import { testConnection, disconnect } from './database/prisma';
 import { WebhookService } from './services/webhookService';
 import { ConfigService } from './services/configService';
 import { AttendanceWorker } from './scheduler/attendanceWorker';
+import { ScheduleWorker } from './scheduler/scheduleWorker';
 
 async function startServer(): Promise<void> {
   logger.info('─────────────────────────────────────────');
@@ -30,9 +31,10 @@ async function startServer(): Promise<void> {
 
   // Start background services
   WebhookService.processWebhooks();
-  setInterval(() => WebhookService.processWebhooks(), 60000);
+  setInterval(() => WebhookService.processWebhooks(), 10000);
   
   await AttendanceWorker.start();
+  ScheduleWorker.start();
 
   // ─── Graceful Shutdown ───────────────────────────────────────────
   const shutdown = async (signal: string): Promise<void> => {
