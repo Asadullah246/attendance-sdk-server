@@ -3,6 +3,7 @@ import logger from '../utils/logger';
 import { saveDeviceData } from '../utils/dataLogger';
 import { getPrisma } from '../database/prisma';
 import { WebhookService } from '../services/webhookService';
+import config from '../config';
 
 const router = Router();
 const prisma = getPrisma();
@@ -98,10 +99,9 @@ router.post('/cdata', async (req: Request, res: Response) => {
 
         if (!isNaN(uid) && timestampStr) {
           try {
-            // The device sends local time (BD time) without a timezone: '2026-07-13 12:17:51'
-            // We append +06:00 so the Node.js server correctly parses it as Bangladesh time, 
-            // even if the server is deployed in UTC (like AWS).
-            const bdTimeStr = timestampStr.replace(' ', 'T') + '+06:00';
+            // The device sends local time without a timezone: '2026-07-13 12:17:51'
+            // We append the configured timezone offset so the Node.js server correctly parses it.
+            const bdTimeStr = timestampStr.replace(' ', 'T') + config.deviceTimezoneOffset;
             const punchTimeDate = new Date(bdTimeStr);
 
             const log = await prisma.attendanceLog.upsert({

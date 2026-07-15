@@ -45,6 +45,7 @@ model User {
   privilege  Int      @default(0) // 0=User, 14=SuperAdmin
   password   String?
   status     String   @default("active") // pending_add, active, pending_delete
+  defaultTimetableId Int? @map("default_timetable_id")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
@@ -251,4 +252,19 @@ model SystemConfig {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("system_configs")
+}
+
+// ─── Holiday ─────────────────────────────────────────────────────────
+// Global holidays to prevent auto-scheduling
+model Holiday {
+  id          Int      @id @default(autoincrement())
+  type        String   @default("global") // e.g. 'global', 'weekend'
+  name        String
+  startDate   DateTime @db.Date
+  endDate     DateTime @db.Date
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("holidays")
 }

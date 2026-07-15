@@ -10,11 +10,11 @@ export interface AssignScheduleInput {
 }
 
 export interface BulkAssignInput {
-  uids: number[];
-  timetableId: number;
-  startDate: string; // ISO format date 'YYYY-MM-DD'
-  endDate: string;   // ISO format date 'YYYY-MM-DD'
-  excludeDays?: number[];
+  schedules: {
+    uid: number;
+    timetableId: number;
+    scheduleDate: string; // ISO format date 'YYYY-MM-DD'
+  }[];
 }
 
 export class ScheduleService {
@@ -49,56 +49,35 @@ export class ScheduleService {
    * Bulk assign schedules to multiple employees over a date range
    */
   static async bulkAssignSchedule(data: BulkAssignInput) {
-    const start = new Date(data.startDate);
-    const end = new Date(data.endDate);
-
-    if (start > end) {
-      throw new Error('startDate cannot be after endDate');
-    }
-
-    const recordsToCreate = [];
-
-    // Loop through each date
-    let currentDate = new Date(start);
-    while (currentDate <= end) {
-      // Check if current day of week is in excludeDays (e.g. 0=Sun, 6=Sat)
-      const isExcluded = data.excludeDays?.includes(currentDate.getDay());
-      
-      if (!isExcluded) {
-        for (let i = 0; i < data.uids.length; i++) {
-          recordsToCreate.push({
-            uid: data.uids[i],
-            timetableId: data.timetableId,
-            scheduleDate: new Date(currentDate)
-          });
-        }
-      }
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    // Skip duplicates in database, create the rest
     let createdCount = 0;
-    for (const record of recordsToCreate) {
+
+    for (const item of data.schedules) {
       try {
+        const targetDate = new Date(item.scheduleDate);
+        
         await prisma.employeeSchedule.upsert({
           where: {
             uid_scheduleDate: {
-              uid: record.uid,
-              scheduleDate: record.scheduleDate
+              uid: item.uid,
+              scheduleDate: targetDate
             }
           },
           update: {
-            timetableId: record.timetableId
+            timetableId: item.timetableId
           },
-          create: record
+          create: {
+            uid: item.uid,
+            timetableId: item.timetableId,
+            scheduleDate: targetDate
+          }
         });
         createdCount++;
       } catch (error) {
-        logger.warn(`[ScheduleService] Failed to assign bulk schedule for ${record.uid} on ${record.scheduleDate.toISOString()}`);
+        logger.warn(`[ScheduleService] Failed to assign bulk schedule for ${item.uid} on ${item.scheduleDate}`);
       }
     }
 
-    return { success: true, count: createdCount };
+    return { count: createdCount };
   }
 
   /**

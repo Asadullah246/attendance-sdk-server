@@ -24,7 +24,7 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 router.post('/', 
   validateRequest(z.object({ body: CreateUserBodySchema })),
   asyncHandler(async (req: Request, res: Response) => {
-    const { uid, name, privilege, deviceSn } = req.body;
+    const { uid, name, privilege, deviceSn, defaultTimetableId } = req.body;
 
     // 1. Save to database
     const user = await prisma.user.upsert({
@@ -34,11 +34,13 @@ router.post('/',
         name,
         privilege: privilege ? parseInt(privilege, 10) : 0,
         status: 'pending_add',
+        defaultTimetableId: defaultTimetableId ?? null
       },
       update: {
         name,
         privilege: privilege ? parseInt(privilege, 10) : 0,
         status: 'pending_add',
+        defaultTimetableId: defaultTimetableId ?? null
       }
     });
 

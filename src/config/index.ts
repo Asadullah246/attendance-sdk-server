@@ -20,6 +20,7 @@ export interface AppConfig {
   webhookSecret: string;
   mainAppWebhookUrl: string;
   timezone: string;
+  deviceTimezoneOffset: string;
 }
 
 const config: AppConfig = {
@@ -51,6 +52,7 @@ const config: AppConfig = {
   
   // Settings
   timezone: process.env.TIMEZONE || 'Asia/Dhaka',
+  deviceTimezoneOffset: process.env.DEVICE_TIMEZONE_OFFSET || '+06:00',
 };
 
 export default config;

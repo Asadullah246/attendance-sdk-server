@@ -23,6 +23,7 @@
                 <a href="#attendance" class="nav-item">Attendance</a>
                 <a href="#synclogs" class="nav-item">Sync Logs</a>
                 <a href="#shifts" class="nav-item">Shifts</a>
+                <a href="#schedules" class="nav-item">Schedules</a>
                 <a href="#reports" class="nav-item">Reports</a>
             </nav>
             <div class="sidebar-footer">
@@ -173,6 +174,36 @@
                     </div>
                 </section>
 
+                <!-- Schedules Section -->
+                <section id="schedules-section" class="card glass-panel content-section">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Employee Schedules</h3>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="number" id="schedules-uid-input" placeholder="User ID" style="padding: 6px; border-radius: 4px; border: none; background: rgba(255,255,255,0.1); color: white; width: 100px;">
+                            <button class="btn btn-primary" id="btn-filter-schedules">Filter</button>
+                            <button class="btn btn-primary" id="btn-open-assign-schedule">+ Assign Schedule</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="schedules-table">
+                            <thead>
+                                <tr>
+                                    <th>Schedule ID</th>
+                                    <th>User UID</th>
+                                    <th>Date</th>
+                                    <th>Shift Name</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="schedules-tbody">
+                                <tr>
+                                    <td colspan="5" class="text-center">Loading schedules...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
                 <!-- Reports Section -->
                 <section id="reports-section" class="card glass-panel content-section">
                     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -233,6 +264,37 @@
                 <div class="action-group" style="margin-top: 20px; justify-content: flex-end;">
                     <button type="button" class="btn btn-secondary" id="btn-close-create-user">Cancel</button>
                     <button type="submit" class="btn btn-primary">Create & Sync</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Assign Schedule Modal -->
+    <div id="assign-schedule-modal" class="modal hidden">
+        <div class="modal-content glass-panel">
+            <h3>Assign Bulk Schedule</h3>
+            <form id="assign-schedule-form">
+                <div class="form-group">
+                    <label>UID (Number)</label>
+                    <input type="number" id="schedule-uid" required>
+                </div>
+                <div class="form-group">
+                    <label>Shift (Timetable ID)</label>
+                    <select id="schedule-timetable-id" required>
+                        <option value="">Loading shifts...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <input type="date" id="schedule-start-date" required>
+                </div>
+                <div class="form-group">
+                    <label>End Date</label>
+                    <input type="date" id="schedule-end-date" required>
+                </div>
+                <div class="action-group" style="margin-top: 20px; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" id="btn-close-assign-schedule">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Assign Bulk</button>
                 </div>
             </form>
         </div>

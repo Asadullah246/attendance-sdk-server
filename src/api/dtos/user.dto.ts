@@ -8,7 +8,8 @@ export const CreateUserBodySchema = z.object({
   uid: z.string().openapi({ description: 'The numeric user ID as string', example: '1001' }),
   name: z.string().openapi({ description: 'The user name', example: 'John Doe' }),
   privilege: z.string().optional().openapi({ description: 'Privilege level (0=User, 14=Admin)', example: '0' }),
-  deviceSn: z.string().optional().openapi({ description: 'Specific device SN. If omitted, pushes to all devices', example: 'SN12345' })
+  deviceSn: z.string().optional().openapi({ description: 'Specific device SN. If omitted, pushes to all devices', example: 'SN12345' }),
+  defaultTimetableId: z.number().int().optional().openapi({ description: 'Default shift for this user', example: 1 })
 });
 
 export const DeleteUserParamSchema = z.object({
@@ -21,6 +22,7 @@ export const UserSchema = z.object({
   name: z.string().openapi({ example: 'John Doe' }),
   privilege: z.number().int().openapi({ example: 0 }),
   status: z.string().openapi({ example: 'enrolled' }),
+  defaultTimetableId: z.number().int().nullable().optional().openapi({ example: 1 }),
   createdAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' }),
   updatedAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' })
 }).openapi('User');
