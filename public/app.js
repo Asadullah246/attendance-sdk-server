@@ -60,6 +60,14 @@ document.addEventListener('DOMContentLoaded', () => {
         createUserModal.classList.add('hidden');
     });
 
+    const assignScheduleModal = document.getElementById('assign-schedule-modal');
+    document.getElementById('btn-open-assign-schedule').addEventListener('click', () => {
+        assignScheduleModal.classList.remove('hidden');
+    });
+    document.getElementById('btn-close-assign-schedule').addEventListener('click', () => {
+        assignScheduleModal.classList.add('hidden');
+    });
+
     // Report Details Modal Close
     document.getElementById('btn-close-report-details')?.addEventListener('click', () => {
         document.getElementById('report-details-modal').classList.add('hidden');
@@ -105,6 +113,7 @@ function initDashboard() {
     fetchUsers();
     fetchCommands();
     fetchShifts();
+    fetchSchedules();
     fetchReports();
 
     document.getElementById('refresh-btn').addEventListener('click', () => {
@@ -113,12 +122,17 @@ function initDashboard() {
         fetchUsers();
         fetchCommands();
         fetchShifts();
+        fetchSchedules();
         fetchReports();
         showToast('Data refreshed');
     });
 
     document.getElementById('btn-filter-attendance')?.addEventListener('click', () => {
         fetchAttendance();
+    });
+
+    document.getElementById('btn-filter-schedules')?.addEventListener('click', () => {
+        fetchSchedules();
     });
 }
 
@@ -433,9 +447,12 @@ async function fetchShifts() {
         const response = await fetchWithAuth('/api/v1/shifts');
         const json = await response.json();
         const tbody = document.getElementById('shifts-tbody');
+        const select = document.getElementById('schedule-timetable-id');
         
         if (json.success && json.data.length > 0) {
             tbody.innerHTML = '';
+            if (select) select.innerHTML = '';
+            
             json.data.forEach(shift => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -447,15 +464,133 @@ async function fetchShifts() {
                     <td>Grace: ${shift.graceMinutes}m | Break: ${shift.breakMinutes}m</td>
                 `;
                 tbody.appendChild(tr);
+
+                if (select) {
+                    const opt = document.createElement('option');
+                    opt.value = shift.id;
+                    opt.textContent = `${shift.name} (${shift.id})`;
+                    select.appendChild(opt);
+                }
             });
         } else {
             tbody.innerHTML = '<tr><td colspan="6" class="text-center">No shifts found.</td></tr>';
+            if (select) select.innerHTML = '<option value="">No shifts available</option>';
         }
     } catch (e) {
         console.error(e);
         showToast('Failed to load shifts');
     }
 }
+
+// Schedules Data
+async function fetchSchedules() {
+    try {
+        const uidInput = document.getElementById('schedules-uid-input');
+        const uid = uidInput ? uidInput.value : '';
+        const query = uid ? `?uid=${uid}` : '';
+
+        const response = await fetchWithAuth(`/api/v1/schedules${query}`);
+        const json = await response.json();
+        const tbody = document.getElementById('schedules-tbody');
+        
+        if (json.success && json.data.length > 0) {
+            tbody.innerHTML = '';
+            
+            json.data.forEach(schedule => {
+                const dateStr = new Date(schedule.scheduleDate).toISOString().split('T')[0];
+                const shiftName = schedule.timetable ? schedule.timetable.name : `Shift ${schedule.timetableId}`;
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${schedule.id}</strong></td>
+                    <td>${schedule.uid}</td>
+                    <td>${dateStr}</td>
+                    <td>${shiftName}</td>
+                    <td>
+                        <button class="btn btn-danger action-delete-schedule" data-id="${schedule.id}">Remove</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.querySelectorAll('.action-delete-schedule').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const id = e.target.getAttribute('data-id');
+                    if (!confirm('Are you sure you want to remove this schedule?')) return;
+                    try {
+                        const res = await fetchWithAuth(`/api/v1/schedules/${id}`, { method: 'DELETE' });
+                        const result = await res.json();
+                        if (result.success) {
+                            showToast('Schedule removed');
+                            fetchSchedules();
+                        } else {
+                            showToast('Failed to remove: ' + result.message);
+                        }
+                    } catch (err) {
+                        showToast('Error removing schedule');
+                    }
+                });
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center">No schedules found.</td></tr>';
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Failed to load schedules');
+    }
+}
+
+document.getElementById('assign-schedule-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const uid = parseInt(document.getElementById('schedule-uid').value, 10);
+    const timetableId = parseInt(document.getElementById('schedule-timetable-id').value, 10);
+    const startDateStr = document.getElementById('schedule-start-date').value;
+    const endDateStr = document.getElementById('schedule-end-date').value;
+
+    if (!uid || !timetableId || !startDateStr || !endDateStr) {
+        return showToast('Please fill all fields');
+    }
+
+    const startDate = new Date(startDateStr);
+    const endDate = new Date(endDateStr);
+    
+    if (startDate > endDate) {
+        return showToast('Start date must be before end date');
+    }
+
+    const payload = [];
+    let currentDate = new Date(startDate);
+    
+    while (currentDate <= endDate) {
+        payload.push({
+            uid,
+            timetableId,
+            scheduleDate: currentDate.toISOString().split('T')[0]
+        });
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    try {
+        const response = await fetchWithAuth('/api/v1/schedules/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ schedules: payload })
+        });
+        const json = await response.json();
+        
+        if (json.success) {
+            showToast(`Successfully assigned ${json.data.count} schedules!`);
+            document.getElementById('assign-schedule-modal').classList.add('hidden');
+            document.getElementById('assign-schedule-form').reset();
+            fetchSchedules();
+        } else {
+            showToast(`Error: ${json.message}`);
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Failed to assign schedule');
+    }
+});
 
 // Daily Reports
 async function fetchReports() {

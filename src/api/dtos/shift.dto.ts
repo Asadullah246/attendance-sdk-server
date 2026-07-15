@@ -11,18 +11,18 @@ export const ShiftIdParamSchema = z.object({
 export const ShiftSchema = z.object({
   id: z.number().int().openapi({ example: 1 }),
   name: z.string().openapi({ example: 'Morning Shift' }),
-  shiftStartTime: z.string().openapi({ example: '09:00' }),
-  shiftEndTime: z.string().openapi({ example: '17:00' }),
-  checkInStartTime: z.string().openapi({ example: '07:00' }),
-  checkInEndTime: z.string().openapi({ example: '11:00' }),
-  checkOutStartTime: z.string().openapi({ example: '16:00' }),
-  checkOutEndTime: z.string().openapi({ example: '20:00' }),
+  shiftStartTime: z.string().openapi({ example: '08:00' }),
+  shiftEndTime: z.string().openapi({ example: '14:00' }),
+  checkInStartTime: z.string().openapi({ example: '06:00' }),
+  checkInEndTime: z.string().openapi({ example: '10:00' }),
+  checkOutStartTime: z.string().openapi({ example: '13:00' }),
+  checkOutEndTime: z.string().openapi({ example: '18:00' }),
   graceMinutes: z.number().int().openapi({ example: 15 }),
-  overtimeThresholdMinutes: z.number().int().openapi({ example: 30 }),
+  overtimeThresholdMinutes: z.number().int().openapi({ example: 60 }),
   breakMinutes: z.number().int().openapi({ example: 0 }),
   isActive: z.boolean().openapi({ example: true }),
-  createdAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' }),
-  updatedAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' })
+  createdAt: z.string().openapi({ example: '2026-08-01T08:00:01Z' }),
+  updatedAt: z.string().openapi({ example: '2026-08-01T08:00:01Z' })
 }).openapi('Shift');
 
 export const CreateShiftBodySchema = z.object({

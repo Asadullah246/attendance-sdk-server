@@ -17,12 +17,20 @@ export const AssignScheduleBodySchema = z.object({
   timetableId: z.number().int().openapi({ example: 1 })
 });
 
-export const BulkAssignScheduleBodySchema = z.object({
-  uids: z.array(z.number().int()).openapi({ example: [1001, 1002] }),
-  startDate: z.string().openapi({ description: 'Start Date (YYYY-MM-DD)', example: '2023-10-01' }),
-  endDate: z.string().openapi({ description: 'End Date (YYYY-MM-DD)', example: '2023-10-31' }),
+export const BulkAssignScheduleItemSchema = z.object({
+  uid: z.number().int().openapi({ example: 105 }),
   timetableId: z.number().int().openapi({ example: 1 }),
-  excludeDays: z.array(z.number().int()).optional().openapi({ description: 'Days of week to exclude (0=Sun, 6=Sat)', example: [0, 6] })
+  scheduleDate: z.string().openapi({ description: 'Date (YYYY-MM-DD)', example: '2026-08-01' })
+});
+
+export const BulkAssignScheduleBodySchema = z.object({
+  schedules: z.array(BulkAssignScheduleItemSchema).openapi({ 
+    description: 'Array of specific shift assignments. This allows for complex rotating shifts.',
+    example: [
+      { uid: 105, timetableId: 1, scheduleDate: '2026-08-01' },
+      { uid: 105, timetableId: 2, scheduleDate: '2026-08-02' }
+    ]
+  })
 });
 
 export const ScheduleIdParamSchema = z.object({
