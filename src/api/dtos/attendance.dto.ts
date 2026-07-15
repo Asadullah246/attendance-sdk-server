@@ -10,6 +10,7 @@ export const GetAttendanceQuerySchema = z.object({
   dateFrom: z.string().optional().openapi({ description: 'Start date (YYYY-MM-DD)', example: '2023-10-01' }),
   dateTo: z.string().optional().openapi({ description: 'End date (YYYY-MM-DD)', example: '2023-10-31' }),
   excludeDuplicates: z.string().optional().openapi({ description: 'Filter out duplicate punches (true/false)', example: 'true' }),
+  order: z.enum(['asc', 'desc']).optional().openapi({ description: 'Sort order (asc/desc), default is desc', example: 'desc' }),
   page: z.string().optional().openapi({ description: 'Page number for pagination', example: '1' }),
   limit: z.string().optional().openapi({ description: 'Number of records to return', example: '100' })
 });

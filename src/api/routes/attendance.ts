@@ -17,7 +17,7 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
 router.get('/', 
   validateRequest(z.object({ query: GetAttendanceQuerySchema })),
   asyncHandler(async (req: Request, res: Response) => {
-    const { sn, uid, dateFrom, dateTo, excludeDuplicates, page = '1', limit = '100' } = req.query;
+    const { sn, uid, dateFrom, dateTo, excludeDuplicates, order = 'desc', page = '1', limit = '100' } = req.query;
     
     const whereClause: any = {};
     
@@ -44,13 +44,16 @@ router.get('/',
     const pageNum = Math.max(1, parseInt((page as string) || '1', 10));
     const limitNum = Math.max(1, parseInt((limit as string) || '100', 10));
     const skip = (pageNum - 1) * limitNum;
+    
+    // Sort direction
+    const sortOrder = (order === 'asc') ? 'asc' : 'desc';
 
     if (hasPaginationParams) {
       const [total, logs] = await Promise.all([
         prisma.attendanceLog.count({ where: whereClause }),
         prisma.attendanceLog.findMany({
           where: whereClause,
-          orderBy: { punchTime: 'desc' },
+          orderBy: { punchTime: sortOrder },
           skip,
           take: limitNum,
         })
@@ -69,7 +72,7 @@ router.get('/',
       // Backward compatibility: flat array
       const logs = await prisma.attendanceLog.findMany({
         where: whereClause,
-        orderBy: { punchTime: 'desc' },
+        orderBy: { punchTime: sortOrder },
         take: 100,
       });
 
