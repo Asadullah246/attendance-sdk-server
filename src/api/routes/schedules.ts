@@ -49,19 +49,6 @@ router.get('/',
   })
 );
 
-router.post('/', 
-  validateRequest(z.object({ body: AssignScheduleBodySchema })),
-  asyncHandler(async (req: Request, res: Response) => {
-    const data: AssignScheduleInput = req.body;
-
-    try {
-      const schedule = await ScheduleService.assignSchedule(data);
-      res.json(successResponse(mapScheduleResponse(schedule), 'Schedule assigned successfully'));
-    } catch (error) {
-      res.status(400).json(errorResponse((error as Error).message, 400));
-    }
-  })
-);
 
 router.post('/bulk', 
   validateRequest(z.object({ body: BulkAssignScheduleBodySchema })),

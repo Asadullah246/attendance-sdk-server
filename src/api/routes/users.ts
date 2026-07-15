@@ -3,7 +3,7 @@ import { getPrisma } from '../../database/prisma';
 import { CommandService } from '../../services/commandService';
 import { successResponse, errorResponse } from '../../utils/helpers';
 import { validateRequest } from '../middleware/validate';
-import { CreateUserBodySchema, DeleteUserParamSchema, DeleteUserQuerySchema } from '../dtos/user.dto';
+import { CreateUserBodySchema, DeleteUserParamSchema } from '../dtos/user.dto';
 import { z } from 'zod';
 
 const router = Router();
@@ -67,11 +67,9 @@ router.post('/',
 );
 
 router.delete('/:uid', 
-  validateRequest(z.object({ params: DeleteUserParamSchema, query: DeleteUserQuerySchema })),
+  validateRequest(z.object({ params: DeleteUserParamSchema })),
   asyncHandler(async (req: Request, res: Response) => {
     const uid = req.params.uid as string;
-    const { deviceSn } = req.query; // Send deviceSn as a query param for DELETE
-
     const numericUid = parseInt(uid, 10);
 
     // 1. Update status to pending_delete (ignore if not found)
@@ -84,22 +82,17 @@ router.delete('/:uid',
       // Record might not exist, which is fine
     }
 
-    // 2. Queue delete command to device(s)
-    if (!deviceSn) {
-      // Delete from ALL devices
-      const devices = await prisma.device.findMany();
-      if (devices.length === 0) {
-        return res.status(400).json(errorResponse('No connected devices found in the system', 400));
-      }
-      for (const device of devices) {
-        await CommandService.deleteUser(device.serialNumber, numericUid);
-      }
-      return res.json(successResponse(null, `User ${numericUid} deletion queued for all devices`));
-    } else {
-      // Delete from specific device
-      const cmdResult = await CommandService.deleteUser(deviceSn as string, numericUid);
-      return res.json(successResponse({ commandId: cmdResult.commandId }, `User ${numericUid} deleted and removal command queued for ${deviceSn}`));
+    // 2. Queue delete command to ALL devices
+    const devices = await prisma.device.findMany();
+    if (devices.length === 0) {
+      return res.status(400).json(errorResponse('No connected devices found in the system', 400));
     }
+    
+    for (const device of devices) {
+      await CommandService.deleteUser(device.serialNumber, numericUid);
+    }
+    
+    return res.json(successResponse(null, `User ${numericUid} deletion queued for all devices`));
   })
 );
 

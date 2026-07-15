@@ -65,32 +65,6 @@ registry.registerPath({
   }
 });
 
-registry.registerPath({
-  method: 'post',
-  path: '/api/v1/schedules',
-  summary: 'Assign a single schedule',
-  tags: ['Schedules'],
-  security: [{ ApiKeyAuth: [] }],
-  request: { body: { content: { 'application/json': { schema: AssignScheduleBodySchema } } } },
-  responses: {
-    200: {
-      description: 'Schedule assigned successfully',
-      content: {
-        'application/json': {
-          schema: createSuccessResponseSchema(ScheduleSchema)
-        }
-      }
-    },
-    400: {
-      description: 'Bad request',
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      }
-    }
-  }
-});
 
 registry.registerPath({
   method: 'post',

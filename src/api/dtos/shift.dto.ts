@@ -48,7 +48,8 @@ export const UpdateShiftBodySchema = z.object({
   checkOutEndTime: z.string().optional().openapi({ example: '20:00' }),
   graceMinutes: z.number().int().optional().openapi({ example: 15 }),
   breakMinutes: z.number().int().optional().openapi({ example: 60 }),
-  overtimeThresholdMinutes: z.number().int().optional().openapi({ example: 60 })
+  overtimeThresholdMinutes: z.number().int().optional().openapi({ example: 60 }),
+  isActive: z.boolean().optional().openapi({ example: true })
 });
 
 // Registering Paths

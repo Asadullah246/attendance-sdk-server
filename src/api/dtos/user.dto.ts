@@ -15,10 +15,6 @@ export const DeleteUserParamSchema = z.object({
   uid: z.string().openapi({ description: 'The numeric user ID as string', example: '1001' })
 });
 
-export const DeleteUserQuerySchema = z.object({
-  deviceSn: z.string().optional().openapi({ description: 'Specific device SN. If omitted, removes from all devices', example: 'SN12345' })
-});
-
 export const UserSchema = z.object({
   id: z.number().int().openapi({ example: 1 }),
   uid: z.number().int().openapi({ example: 1001 }),
@@ -89,8 +85,7 @@ registry.registerPath({
   tags: ['Users'],
   security: [{ ApiKeyAuth: [] }],
   request: {
-    params: DeleteUserParamSchema,
-    query: DeleteUserQuerySchema
+    params: DeleteUserParamSchema
   },
   responses: {
     200: {

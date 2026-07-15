@@ -24,6 +24,7 @@ function mapShiftBody(body: any): CreateShiftInput {
   if (body.checkInEndTime) data.checkInEndOffset = timeStringToMinutes(body.checkInEndTime);
   if (body.checkOutStartTime) data.checkOutStartOffset = timeStringToMinutes(body.checkOutStartTime);
   if (body.checkOutEndTime) data.checkOutEndOffset = timeStringToMinutes(body.checkOutEndTime);
+  if (body.isActive !== undefined) data.isActive = body.isActive;
 
   // Auto-adjust next-day times if they appear earlier than the shift start
   const baseStart = data.shiftStartOffset;

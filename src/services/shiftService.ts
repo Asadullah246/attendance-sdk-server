@@ -14,6 +14,7 @@ export interface CreateShiftInput {
   graceMinutes?: number;
   overtimeThresholdMinutes?: number;
   breakMinutes?: number;
+  isActive?: boolean;
 }
 
 export class ShiftService {
