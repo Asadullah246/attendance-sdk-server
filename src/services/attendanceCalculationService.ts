@@ -17,6 +17,97 @@ export class AttendanceCalculationService {
     return d;
   }
 
+  // ─── Refactored Helper Methods ───────────────────────────────────────
+
+  /**
+   * Validates punches to check for odd pairs, missing breaks, or no punches.
+   */
+  private static validatePunches(rawLogs: any[], breakMinutes: number) {
+    
+    let status = 'PRESENT';
+    const anomalyNotes: string[] = [];
+
+    if (rawLogs.length === 0) {
+      return { status: 'ABSENT', anomalyNotes, actualCheckIn: null, actualCheckOut: null };
+    }
+
+    if (rawLogs.length === 2 && breakMinutes > 0) {
+      status = 'MISSING_PUNCH';
+      anomalyNotes.push(`Only 2 punches found. Missing break punches. Admin review required.`);
+    }
+
+    if (rawLogs.length % 2 !== 0) {
+      status = 'MISSING_PUNCH';
+      anomalyNotes.push(`Odd number of punches (${rawLogs.length}). Admin review required.`);
+    }
+
+    const actualCheckIn = rawLogs[0].punchTime;
+    
+    // Only trust actualCheckOut if there is an even number of punches
+    let actualCheckOut = null;
+    if (rawLogs.length > 1 && rawLogs.length % 2 === 0) {
+      actualCheckOut = rawLogs[rawLogs.length - 1].punchTime;
+    }
+
+    return { status, anomalyNotes, actualCheckIn, actualCheckOut };
+  }
+
+  /**
+   * Calculates total working minutes by pairing up IN and OUT punches.
+   */
+  private static calculateWorkingMinutes(rawLogs: any[]): number {
+    let workingMinutes = 0;
+    const pairsCount = Math.floor(rawLogs.length / 2);
+
+    for (let i = 0; i < pairsCount * 2; i += 2) {
+      const inPunch = rawLogs[i].punchTime.getTime();
+      const outPunch = rawLogs[i+1].punchTime.getTime();
+      const durationMins = Math.floor((outPunch - inPunch) / 60000);
+      workingMinutes += durationMins;
+    }
+    
+    return workingMinutes;
+  }
+
+  /**
+   * Calculates late minutes based on grace period.
+   */
+  private static calculateLateness(actualCheckIn: Date | null, shiftStart: Date, graceMinutes: number) {
+    if (!actualCheckIn) return { lateMinutes: 0, isLate: false };
+
+    const lateness = Math.floor((actualCheckIn.getTime() - shiftStart.getTime()) / 60000);
+    
+    if (lateness > graceMinutes) {
+      return { lateMinutes: lateness, isLate: true };
+    }
+    
+    return { lateMinutes: 0, isLate: false };
+  }
+
+  /**
+   * Calculates overtime and early leave based on shift end time.
+   */
+  private static calculateOvertimeAndEarlyLeave(actualCheckOut: Date | null, shiftEnd: Date, overtimeThresholdMinutes: number) {
+    if (!actualCheckOut) return { earlyLeaveMinutes: 0, overtimeMinutes: 0, isEarlyLeave: false };
+
+    let earlyLeaveMinutes = 0;
+    let overtimeMinutes = 0;
+    let isEarlyLeave = false;
+
+    const earlyLeave = Math.floor((shiftEnd.getTime() - actualCheckOut.getTime()) / 60000);
+    if (earlyLeave > 0) {
+      earlyLeaveMinutes = earlyLeave;
+      isEarlyLeave = true;
+    }
+
+    const rawOvertime = Math.floor((actualCheckOut.getTime() - shiftEnd.getTime()) / 60000);
+    if (rawOvertime >= overtimeThresholdMinutes) {
+      overtimeMinutes = rawOvertime;
+    }
+
+    return { earlyLeaveMinutes, overtimeMinutes, isEarlyLeave };
+  }
+
   /**
    * Calculate hours and identify status for a single schedule.
    * This is a pure function for testing purposes, but here it's integrated with types.
@@ -30,16 +121,13 @@ export class AttendanceCalculationService {
     const localMidnight = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), 0, 0, 0, 0);
     const shiftStart = this.offsetToAbsoluteTime(localMidnight, timetable.shiftStartOffset);
     const shiftEnd = this.offsetToAbsoluteTime(localMidnight, timetable.shiftEndOffset);
-
-    let status = 'PRESENT';
-    let anomalyNotes = [];
-    let workingMinutes = 0;
-    let lateMinutes = 0;
-    let earlyLeaveMinutes = 0;
-    let overtimeMinutes = 0;
     const breakMinutes = timetable.breakMinutes || 0;
 
-    if (rawLogs.length === 0) {
+    // 1. Validate punches
+    const { status: initialStatus, anomalyNotes, actualCheckIn, actualCheckOut } = 
+      this.validatePunches(rawLogs, breakMinutes);
+
+    if (initialStatus === 'ABSENT') {
       return {
         actualCheckIn: null, actualCheckOut: null, workingMinutes: 0,
         lateMinutes: 0, earlyLeaveMinutes: 0, overtimeMinutes: 0, breakMinutes: 0,
@@ -47,56 +135,24 @@ export class AttendanceCalculationService {
       };
     }
 
-    if (rawLogs.length === 2 && breakMinutes > 0) {
-      status = 'MISSING_PUNCH';
-      anomalyNotes.push(`Only 2 punches found. Missing break punches. Admin review required.`);
-    }
+    let currentStatus = initialStatus;
 
-    if (rawLogs.length % 2 !== 0) {
-      status = 'MISSING_PUNCH';
-      anomalyNotes.push(`Odd number of punches (${rawLogs.length}). Admin review required.`);
-    }
-
-    let actualCheckIn = rawLogs[0].punchTime;
+    // 2. Calculate times
+    const workingMinutes = this.calculateWorkingMinutes(rawLogs);
     
-    // Only trust actualCheckOut if there is an even number of punches
-    // Because if it's odd, the last punch is an IN punch, not an OUT punch.
-    let actualCheckOut = null;
-    if (rawLogs.length > 1 && rawLogs.length % 2 === 0) {
-      actualCheckOut = rawLogs[rawLogs.length - 1].punchTime;
-    }
+    // Only calculate late/early/overtime if punches aren't fundamentally broken
+    const { lateMinutes, isLate } = currentStatus !== 'MISSING_PUNCH' 
+      ? this.calculateLateness(actualCheckIn, shiftStart, timetable.graceMinutes)
+      : { lateMinutes: 0, isLate: false };
 
-    // Process sequential pairs
-    const pairsCount = Math.floor(rawLogs.length / 2);
-    for (let i = 0; i < pairsCount * 2; i += 2) {
-      const inPunch = rawLogs[i].punchTime.getTime();
-      const outPunch = rawLogs[i+1].punchTime.getTime();
-      const durationMins = Math.floor((outPunch - inPunch) / 60000);
-      
-      workingMinutes += durationMins;
-    }
+    const { earlyLeaveMinutes, overtimeMinutes, isEarlyLeave } = currentStatus !== 'MISSING_PUNCH'
+      ? this.calculateOvertimeAndEarlyLeave(actualCheckOut, shiftEnd, timetable.overtimeThresholdMinutes)
+      : { earlyLeaveMinutes: 0, overtimeMinutes: 0, isEarlyLeave: false };
 
-    // Calculate Lateness
-    if (actualCheckIn && status !== 'MISSING_PUNCH') {
-      const lateness = Math.floor((actualCheckIn.getTime() - shiftStart.getTime()) / 60000);
-      if (lateness > timetable.graceMinutes) {
-        lateMinutes = lateness;
-        if (status === 'PRESENT') status = 'LATE';
-      }
-    }
-
-    // Calculate Early Leave and Overtime ONLY if actualCheckOut is valid
-    if (actualCheckOut && status !== 'MISSING_PUNCH') {
-      const earlyLeave = Math.floor((shiftEnd.getTime() - actualCheckOut.getTime()) / 60000);
-      if (earlyLeave > 0) {
-        earlyLeaveMinutes = earlyLeave;
-        if (status === 'PRESENT') status = 'EARLY_LEAVE';
-      }
-
-      const rawOvertime = Math.floor((actualCheckOut.getTime() - shiftEnd.getTime()) / 60000);
-      if (rawOvertime >= timetable.overtimeThresholdMinutes) {
-        overtimeMinutes = rawOvertime;
-      }
+    // 3. Resolve final status
+    if (currentStatus === 'PRESENT') {
+      if (isLate) currentStatus = 'LATE';
+      else if (isEarlyLeave) currentStatus = 'EARLY_LEAVE';
     }
 
     return {
@@ -108,7 +164,7 @@ export class AttendanceCalculationService {
       overtimeMinutes,
       breakMinutes,
       middlePunchCount: rawLogs.length > 2 ? rawLogs.length - 2 : 0,
-      status,
+      status: currentStatus,
       anomalyNotes: anomalyNotes.length > 0 ? anomalyNotes.join('; ') : null
     };
   }
