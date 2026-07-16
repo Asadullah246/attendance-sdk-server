@@ -43,6 +43,7 @@ app.use(express.text({ type: ['text/plain', 'application/unknown', '*/*'] }));
 // HTTP request logging via Morgan → Winston
 app.use(
   morgan('short', {
+    skip: (req) => req.url.includes('/iclock/getrequest'),
     stream: {
       write: (message: string) => logger.http(message.trim()),
     },
