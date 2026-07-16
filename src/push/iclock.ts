@@ -117,9 +117,9 @@ router.get('/cdata', async (req: Request, res: Response) => {
     }
   }
 
-  // ADMS requires returning registry configuration. A simple OK often suffices
-  // but returning Registry=OK or typical config is safer.
-  sendADMSResponse(res, 'Registry=OK\n');
+  // Return proper ADMS initialization options so the device knows how to poll
+  const optionsResponse = `GET OPTION FROM: ${sn}\nStamp=9999\nOpStamp=9999\nErrorDelay=60\nDelay=10\nTransTimes=00:00;14:00\nTransInterval=1\nTransFlag=1111000000\nTimeZone=${config.deviceTimezoneOffset}\nRealtime=1\nEncrypt=0\n`;
+  sendADMSResponse(res, optionsResponse);
 });
 
 /**
