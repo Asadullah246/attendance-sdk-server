@@ -16,9 +16,11 @@ const prisma = getPrisma();
  * Common response for ZKTeco ADMS push protocol.
  * The device expects a plain text "OK" to acknowledge receipt.
  */
-const sendADMSResponse = (res: Response, content: string = 'OK\n') => {
+const sendADMSResponse = (res: Response, content: string = 'OK\r\n') => {
   res.setHeader('Content-Type', 'text/plain');
-  res.send(content);
+  // Ensure we use \r\n (CRLF) for all line endings, as ZKTeco C-firmware parsers will fail with just \n
+  const safeContent = content.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n');
+  res.send(safeContent);
 };
 
 /**
@@ -29,8 +31,8 @@ const sendADMSResponse = (res: Response, content: string = 'OK\n') => {
 router.post('/registry', (req: Request, res: Response) => {
   const sn = req.query.SN as string;
   logger.info(`[Push] Device Registry Request - SN: ${sn}`);
-  // Returning OK makes the device think it's properly registered and it will begin polling.
-  sendADMSResponse(res, 'Registry=OK\n');
+  // Some devices expect just a standard 'OK' to complete registration
+  sendADMSResponse(res);
 });
 
 /**
