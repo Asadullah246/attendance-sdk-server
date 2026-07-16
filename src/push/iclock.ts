@@ -181,7 +181,7 @@ router.post('/cdata', async (req: Request, res: Response) => {
             logger.info(`[Push] Saved attendance for UID: ${uid} at ${timestampStr}`);
             
             // Trigger Webhook
-            WebhookService.queueWebhook('attendance', log);
+            WebhookService.queueWebhook('raw_attendance', log);
 
             // --- LIVE CALCULATION ---
             // Trigger calculation asynchronously for Today and Yesterday

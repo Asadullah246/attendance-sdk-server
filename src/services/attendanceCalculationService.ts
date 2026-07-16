@@ -7,6 +7,40 @@ const prisma = getPrisma();
 
 export class AttendanceCalculationService {
   /**
+   * Helper to fetch user name and send a correctly formatted TimeCard webhook.
+   */
+  private static async sendTimeCardWebhook(report: any) {
+    try {
+      const user = await prisma.user.findUnique({ where: { uid: report.uid } });
+      const payload = [{
+        id: report.id,
+        uid: report.uid,
+        name: user?.name || `User ${report.uid}`,
+        scheduleDate: report.scheduleDate.toISOString(),
+        timetableId: report.timetableId,
+        actualCheckIn: report.actualCheckIn ? report.actualCheckIn.toISOString() : null,
+        actualCheckOut: report.actualCheckOut ? report.actualCheckOut.toISOString() : null,
+        workingMinutes: report.workingMinutes,
+        lateMinutes: report.lateMinutes,
+        earlyLeaveMinutes: report.earlyLeaveMinutes,
+        overtimeMinutes: report.overtimeMinutes,
+        breakMinutes: report.breakMinutes,
+        middlePunchCount: report.middlePunchCount,
+        status: report.status,
+        anomalyNotes: report.anomalyNotes,
+        isManualOverride: report.isManualOverride,
+        manualOvertimeMinutes: report.manualOvertimeMinutes,
+        manualNote: report.manualNote,
+        createdAt: report.createdAt ? report.createdAt.toISOString() : new Date().toISOString(),
+        updatedAt: report.updatedAt ? report.updatedAt.toISOString() : new Date().toISOString()
+      }];
+      await WebhookService.queueWebhook('time_card', payload);
+    } catch (e) {
+      logger.error(`[Webhook] Error formatting TimeCard`, { error: (e as Error).message });
+    }
+  }
+
+  /**
    * Helper to add minute offsets to a base date.
    */
   private static offsetToAbsoluteTime(scheduleDate: Date, offsetMinutes: number): Date {
@@ -264,15 +298,7 @@ export class AttendanceCalculationService {
       }
     });
 
-    await WebhookService.queueWebhook('attendance.calculated', {
-      event: 'attendance.calculated',
-      uid: schedule.uid,
-      date: dateStr,
-      status: result.status,
-      workingMinutes: result.workingMinutes,
-      lateMinutes: result.lateMinutes,
-      overtimeMinutes: result.overtimeMinutes
-    });
+    await this.sendTimeCardWebhook(upsertedReport);
 
     return upsertedReport;
   }
@@ -395,15 +421,12 @@ export class AttendanceCalculationService {
         });
 
         // Queue webhook for main app
-        await WebhookService.queueWebhook('attendance.calculated', {
-          event: 'attendance.calculated',
-          uid: schedule.uid,
-          date: dateStr,
-          status: result.status,
-          workingMinutes: result.workingMinutes,
-          lateMinutes: result.lateMinutes,
-          overtimeMinutes: result.overtimeMinutes
+        const fullReport = await prisma.dailyAttendanceReport.findUnique({
+          where: { uid_scheduleDate: { uid: schedule.uid, scheduleDate: schedule.scheduleDate } }
         });
+        if (fullReport) {
+          await this.sendTimeCardWebhook(fullReport);
+        }
 
         processedCount++;
       } catch (error) {
@@ -442,7 +465,7 @@ export class AttendanceCalculationService {
 
       // If no report exists, they had no logs and were skipped in calculateForDate
       if (!existingReport) {
-        await prisma.dailyAttendanceReport.create({
+        const newReport = await prisma.dailyAttendanceReport.create({
           data: {
             uid: schedule.uid,
             scheduleDate: schedule.scheduleDate,
@@ -452,15 +475,7 @@ export class AttendanceCalculationService {
         });
 
         // Queue webhook for main app
-        await WebhookService.queueWebhook('attendance.calculated', {
-          event: 'attendance.calculated',
-          uid: schedule.uid,
-          date: dateStr,
-          status: 'ABSENT',
-          workingMinutes: 0,
-          lateMinutes: 0,
-          overtimeMinutes: 0
-        });
+        await this.sendTimeCardWebhook(newReport);
 
         markedCount++;
       }

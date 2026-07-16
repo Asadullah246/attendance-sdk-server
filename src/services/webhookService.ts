@@ -10,10 +10,19 @@ export class WebhookService {
    */
   static async queueWebhook(eventType: string, payload: any) {
     try {
-      const webhookUrl = config.mainAppWebhookUrl;
+      let webhookUrl = '';
+
+      if (eventType === 'time_card') {
+        webhookUrl = config.timeCardWebhookUrl;
+      } else if (eventType === 'raw_attendance') {
+        webhookUrl = config.rawAttendanceWebhookUrl;
+      } else {
+        webhookUrl = config.commandWebhookUrl;
+      }
       
       if (!webhookUrl) {
-        // logger.warn(`[WebhookService] Skipping webhook ${eventType} because MAIN_APP_WEBHOOK_URL is not set in .env`);
+        // Silently skip if the specific webhook is not configured
+        // logger.warn(`[WebhookService] Skipping webhook ${eventType} because its URL is not set in .env`);
         return;
       }
 
