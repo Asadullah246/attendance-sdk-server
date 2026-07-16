@@ -391,9 +391,15 @@ router.post('/cdata', async (req: Request, res: Response) => {
                 update: { syncedAt: null }
               });
 
-              const cmdPrefix = typeCode === 15 ? 'DATA UPDATE FACE' : 'DATA UPDATE FINGER';
-              const cmdData = `${cmdPrefix} PIN=${uidStr} FID=${fidStr} Size=${sizeStr} Valid=${validStr} TMP=${tmp}`;
-              
+              let cmdData = '';
+              if (line.toUpperCase().startsWith('BIODATA ')) {
+                // If the device uses the BIODATA table, it requires all exact formatting (MajorVer, MinorVer, etc.)
+                cmdData = `DATA UPDATE ${line.trim()}`;
+              } else {
+                // Legacy fallback for FP/FACE
+                const cmdPrefix = typeCode === 15 ? 'DATA UPDATE FACE' : 'DATA UPDATE FINGERTMP';
+                cmdData = `${cmdPrefix} PIN=${uidStr} FID=${fidStr} Size=${sizeStr} Valid=${validStr} TMP=${tmp}`;
+              }
               await prisma.commandQueue.create({
                 data: {
                   deviceSn: device.serialNumber,
