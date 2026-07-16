@@ -346,6 +346,18 @@ router.post('/cdata', async (req: Request, res: Response) => {
       const uid = parseInt(uidStr, 10);
       if (!isNaN(uid) && tmp) {
         try {
+          // ENSURE USER EXISTS (Prevent Foreign Key Error if fingerprint arrives before user profile)
+          await prisma.user.upsert({
+            where: { uid: uid },
+            create: {
+              uid: uid,
+              name: `User ${uid}`,
+              status: 'active',
+              areaId: sourceDevice?.areaId || null,
+            },
+            update: {} // Do nothing if user already exists
+          });
+
           const bioTemplate = await prisma.biometricTemplate.upsert({
             where: {
               uid_type_fingerId: {
