@@ -120,7 +120,8 @@ router.get('/cdata', async (req: Request, res: Response) => {
   }
 
   // Return proper ADMS initialization options so the device knows how to poll
-  const optionsResponse = `GET OPTION FROM: ${sn}\nStamp=9999\nOpStamp=9999\nErrorDelay=60\nDelay=10\nTransTimes=00:00;14:00\nTransInterval=1\nTransFlag=1111000000\nTimeZone=${config.deviceTimezoneOffset}\nRealtime=1\nEncrypt=0\n`;
+  // TransFlag=1111111111 tells the device to push ALL data (including BIODATA/fingerprints)
+  const optionsResponse = `GET OPTION FROM: ${sn}\r\nStamp=9999\r\nOpStamp=9999\r\nErrorDelay=60\r\nDelay=10\r\nTransTimes=00:00;14:00\r\nTransInterval=1\r\nTransFlag=1111111111\r\nTimeZone=${config.deviceTimezoneOffset}\r\nRealtime=1\r\nEncrypt=0\r\n`;
   sendADMSResponse(res, optionsResponse);
 });
 
@@ -307,8 +308,8 @@ router.post('/cdata', async (req: Request, res: Response) => {
     }
   }
 
-  // Parse FP (Fingerprint) or FACE (Face) or BIODATA
-  if ((table === 'FP' || table === 'FACE' || table === 'BIODATA') && typeof rawBody === 'string') {
+  // Parse FP (Fingerprint) or FACE (Face) or BIODATA or TEMPLATE
+  if ((table === 'FP' || table === 'FACE' || table === 'BIODATA' || table === 'TEMPLATE') && typeof rawBody === 'string') {
     const lines = rawBody.split('\n').filter(l => l.trim() !== '');
     for (const line of lines) {
       // Key-Value format: PIN=1001 FID=0 Size=250 Valid=1 TMP=...
