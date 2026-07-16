@@ -107,4 +107,27 @@ export class WebhookService {
       logger.error(`[WebhookService] Queue processing error`, { error: (error as Error).message });
     }
   }
+
+  /**
+   * Cleans up successfully delivered or dead webhooks older than the specified number of days
+   * to prevent the database from growing indefinitely.
+   */
+  static async cleanupOldWebhooks(days: number = 7) {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - days);
+
+      const result = await prisma.webhookQueue.deleteMany({
+        where: {
+          status: { in: ['success', 'dead'] },
+          updatedAt: { lt: cutoffDate }
+        }
+      });
+      if (result.count > 0) {
+        logger.info(`[WebhookService] Cleaned up ${result.count} old webhooks from the queue.`);
+      }
+    } catch (error) {
+      logger.error(`[WebhookService] Error cleaning up old webhooks`, { error: (error as Error).message });
+    }
+  }
 }

@@ -6,6 +6,7 @@ import { WebhookService } from './services/webhookService';
 import { ConfigService } from './services/configService';
 import { AttendanceWorker } from './scheduler/attendanceWorker';
 import { ScheduleWorker } from './scheduler/scheduleWorker';
+import { MaintenanceWorker } from './scheduler/maintenanceWorker';
 
 async function startServer(): Promise<void> {
   logger.info('─────────────────────────────────────────');
@@ -35,6 +36,7 @@ async function startServer(): Promise<void> {
   
   await AttendanceWorker.start();
   ScheduleWorker.start();
+  MaintenanceWorker.start();
 
   // ─── Graceful Shutdown ───────────────────────────────────────────
   const shutdown = async (signal: string): Promise<void> => {

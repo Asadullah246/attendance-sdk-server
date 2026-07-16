@@ -86,6 +86,29 @@ export class CommandService {
   }
 
   /**
+   * Cleans up completed/failed commands older than the specified number of days
+   * to prevent the database from growing indefinitely.
+   */
+  static async cleanupOldCommands(days: number = 30) {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - days);
+
+      const result = await prisma.commandQueue.deleteMany({
+        where: {
+          status: { in: ['completed', 'failed'] },
+          completedAt: { lt: cutoffDate }
+        }
+      });
+      if (result.count > 0) {
+        logger.info(`[CommandService] Cleaned up ${result.count} old commands from the queue.`);
+      }
+    } catch (error) {
+      logger.error(`[CommandService] Error cleaning up old commands`, { error: (error as Error).message });
+    }
+  }
+
+  /**
    * Gets the status of a specific command
    */
   static async getCommandStatus(commandId: number) {

@@ -125,7 +125,7 @@ router.delete('/:uid',
     // 1. Update status to pending_delete (ignore if not found)
     try {
       await prisma.user.update({
-        where: { id: numericUid },
+        where: { uid: numericUid },
         data: { status: 'pending_delete' }
       });
     } catch (e) {
