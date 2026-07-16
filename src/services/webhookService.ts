@@ -22,7 +22,7 @@ export class WebhookService {
       
       if (!webhookUrl) {
         // Silently skip if the specific webhook is not configured
-        // logger.warn(`[WebhookService] Skipping webhook ${eventType} because its URL is not set in .env`);
+        logger.warn(`[WebhookService] Skipping webhook ${eventType} because its URL is not set in .env`);
         return;
       }
 
@@ -35,9 +35,9 @@ export class WebhookService {
         },
       });
       
-      // logger.info(`[WebhookService] Queued ${eventType} event for Main App`);
+      logger.info(`[WebhookService] Queued ${eventType} event for Main App`);
     } catch (error) {
-      // logger.error(`[WebhookService] Failed to queue webhook`, { error: (error as Error).message });
+      logger.error(`[WebhookService] Failed to queue webhook`, { error: (error as Error).message });
     }
   }
 
@@ -80,7 +80,7 @@ export class WebhookService {
               where: { id: item.id },
               data: { status: 'success', lastError: null },
             });
-            // logger.info(`[WebhookService] Successfully delivered webhook ${item.id} to ${item.url}`);
+            logger.info(`[WebhookService] Successfully delivered webhook ${item.id} to ${item.url}`);
           } else {
             throw new Error(`HTTP ${response.status} - ${response.statusText}`);
           }
@@ -98,13 +98,13 @@ export class WebhookService {
               lastError: errorMessage
             },
           });
-          // logger.warn(`[WebhookService] Delivery failed for webhook ${item.id} to ${item.url} (Attempt ${newRetryCount})`, { error: errorMessage });
+          logger.warn(`[WebhookService] Delivery failed for webhook ${item.id} to ${item.url} (Attempt ${newRetryCount})`, { error: errorMessage });
         }
       });
 
       await Promise.allSettled(promises);
     } catch (error) {
-      // logger.error(`[WebhookService] Queue processing error`, { error: (error as Error).message });
+      logger.error(`[WebhookService] Queue processing error`, { error: (error as Error).message });
     }
   }
 }
