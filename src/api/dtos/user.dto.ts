@@ -20,8 +20,10 @@ export const UserSchema = z.object({
   id: z.number().int().openapi({ example: 1 }),
   uid: z.number().int().openapi({ example: 1001 }),
   name: z.string().openapi({ example: 'John Doe' }),
+  cardNumber: z.string().nullable().optional().openapi({ example: '123456789' }),
   privilege: z.number().int().openapi({ example: 0 }),
   status: z.string().openapi({ example: 'enrolled' }),
+  areaId: z.number().int().nullable().optional().openapi({ example: 1 }),
   defaultTimetableId: z.number().int().nullable().optional().openapi({ example: 1 }),
   createdAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' }),
   updatedAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' })
