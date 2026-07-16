@@ -68,6 +68,7 @@ export class WebhookService {
               'Content-Type': 'application/json',
               'X-ZKTeco-Event': item.eventType,
               'x-webhook-secret': config.webhookSecret,
+              'x-api-key': config.apiKey,
             },
             body: item.payload,
             // Timeout after 5 seconds to prevent hanging
