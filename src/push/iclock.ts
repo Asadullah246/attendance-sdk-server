@@ -298,26 +298,39 @@ router.post('/cdata', async (req: Request, res: Response) => {
     const lines = rawBody.split('\n').filter(l => l.trim() !== '');
     for (const line of lines) {
       // Key-Value format: PIN=1001 FID=0 Size=250 Valid=1 TMP=...
+      // Or BIODATA format: BIODATA Pin=1001 No=0 Valid=1 Type=1 Tmp=...
       const parts = line.split('\t');
       let uidStr = '';
       let fidStr = '0';
       let sizeStr = '0';
       let validStr = '1';
       let tmp = '';
-      
+      let typeCode = table === 'FACE' ? 15 : 1; // 1 = Finger, 15 = Face
+
       parts.forEach(p => {
-        if (p.startsWith('PIN=')) uidStr = p.replace('PIN=', '');
-        if (p.startsWith('FID=')) fidStr = p.replace('FID=', '');
-        if (p.startsWith('Size=')) sizeStr = p.replace('Size=', '');
-        if (p.startsWith('Valid=')) validStr = p.replace('Valid=', '');
-        if (p.startsWith('TMP=')) tmp = p.replace('TMP=', '');
+        const part = p.trim();
+        // Handle normal FP/FACE
+        if (part.startsWith('PIN=')) uidStr = part.replace('PIN=', '');
+        if (part.startsWith('FID=')) fidStr = part.replace('FID=', '');
+        if (part.startsWith('Size=')) sizeStr = part.replace('Size=', '');
+        if (part.startsWith('Valid=')) validStr = part.replace('Valid=', '');
+        if (part.startsWith('TMP=')) tmp = part.replace('TMP=', '');
+
+        // Handle BIODATA
+        if (part.toUpperCase().startsWith('BIODATA PIN=')) uidStr = part.substring(12);
+        if (part.startsWith('Pin=')) uidStr = part.replace('Pin=', '');
+        if (part.startsWith('No=')) fidStr = part.replace('No=', '');
+        if (part.startsWith('Tmp=')) tmp = part.replace('Tmp=', '');
+        if (part.startsWith('Type=')) {
+          const t = parseInt(part.replace('Type=', ''), 10);
+          // Type=1 is Finger, Type=2/8/9 are usually Face. 
+          typeCode = t === 1 ? 1 : 15;
+        }
       });
 
       const uid = parseInt(uidStr, 10);
       if (!isNaN(uid) && tmp) {
         try {
-          const typeCode = table === 'FACE' ? 15 : 1; // 1 = Finger, 15 = Face
-
           const bioTemplate = await prisma.biometricTemplate.upsert({
             where: {
               uid_type_fingerId: {
@@ -363,7 +376,7 @@ router.post('/cdata', async (req: Request, res: Response) => {
                 update: { syncedAt: null }
               });
 
-              const cmdPrefix = table === 'FACE' ? 'DATA UPDATE FACE' : 'DATA UPDATE FINGER';
+              const cmdPrefix = typeCode === 15 ? 'DATA UPDATE FACE' : 'DATA UPDATE FINGER';
               const cmdData = `${cmdPrefix} PIN=${uidStr} FID=${fidStr} Size=${sizeStr} Valid=${validStr} TMP=${tmp}`;
               
               await prisma.commandQueue.create({
