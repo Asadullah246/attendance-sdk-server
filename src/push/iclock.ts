@@ -291,7 +291,7 @@ router.post('/cdata', async (req: Request, res: Response) => {
       if (!isNaN(uid)) {
         try {
           const user = await prisma.user.upsert({
-            where: { id: uid },
+            where: { uid: uid },
             create: {
               uid: uid,
               name: name || `User ${uid}`,
