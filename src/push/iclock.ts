@@ -120,6 +120,7 @@ router.post('/cdata', async (req: Request, res: Response) => {
   const rawBody = req.body; // text/plain payload
 
   logger.info(`[Push] Data Received from ${sn} for table ${table}`);
+  logger.info(`[Push Raw Data] \n${typeof rawBody === 'object' ? JSON.stringify(rawBody, null, 2) : rawBody}`);
   
   // Save exact payload for analysis
   saveDeviceData('cdata', 'POST', req.query, rawBody, sn);
@@ -400,9 +401,9 @@ router.post('/cdata', async (req: Request, res: Response) => {
 router.get('/getrequest', async (req: Request, res: Response) => {
   const sn = req.query.SN as string;
   
-  logger.info(`[Push] Device Polling (getrequest) from SN: ${sn || 'UNKNOWN'}`);
-
-  logger.info(`[Push] Polling for commands from ${sn}`);
+  // Noisy getrequest logs are disabled
+  // logger.info(`[Push] Device Polling (getrequest) from SN: ${sn || 'UNKNOWN'}`);
+  // logger.info(`[Push] Polling for commands from ${sn}`);
   // saveDeviceData('getrequest', 'GET', req.query, null, sn);
 
   if (sn) {
@@ -449,8 +450,8 @@ router.get('/getrequest', async (req: Request, res: Response) => {
 router.post('/devicecmd', async (req: Request, res: Response) => {
   const sn = req.query.SN as string;
   const rawBody = req.body; // ID=1&Return=0&CMD=DATA...
-
   logger.info(`[Push] Command Result from ${sn}`);
+  logger.info(`[Push Raw Data CMD] \n${typeof rawBody === 'object' ? JSON.stringify(rawBody, null, 2) : rawBody}`);
   saveDeviceData('devicecmd', 'POST', req.query, rawBody, sn);
 
   if (sn) {
