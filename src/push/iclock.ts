@@ -221,6 +221,40 @@ router.post('/cdata', async (req: Request, res: Response) => {
       }
     }
   }
+
+  // Parse OPERLOG (Settings / User Updates made on the device itself)
+  if (table === 'OPERLOG' && typeof rawBody === 'string') {
+    const lines = rawBody.split('\n').filter(l => l.trim() !== '');
+    for (const line of lines) {
+      // Format: OPLOG OpType Param1 Time Param2 Param3 Param4
+      // Example: OPLOG 4\t1\t2026-07-16 20:16:37\t1\t0\t0\t0
+      const match = line.match(/^OPLOG\s+(\d+)\t[^\t]+\t[^\t]+\t(\d+)/);
+      if (match && sn) {
+        const opType = parseInt(match[1], 10);
+        const uid = match[2];
+        
+        // opType 1: add user, 4: update user
+        // This usually means a Card, Name, or Privilege was changed on the hardware.
+        if ([1, 4].includes(opType) && uid) {
+          try {
+            await prisma.commandQueue.create({
+              data: {
+                deviceSn: sn,
+                commandType: 'QUERY_USER',
+                commandData: `DATA QUERY USERINFO PIN=${uid}`,
+                status: 'pending',
+              }
+            });
+            logger.info(`[Push] Device ${sn} updated User ${uid}. Queued QUERY command to fetch new Card/Name.`);
+          } catch(e) {
+            logger.error(`[Push] Failed to queue QUERY_USER`, { error: (e as Error).message });
+            dbHasError = true;
+          }
+        }
+      }
+    }
+  }
+
   // Parse USERINFO (User Sync from device)
   if ((table === 'USER' || table === 'USERINFO') && typeof rawBody === 'string') {
     const lines = rawBody.split('\n').filter(l => l.trim() !== '');
