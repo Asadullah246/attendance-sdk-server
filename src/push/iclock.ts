@@ -34,9 +34,11 @@ router.get('/cdata', async (req: Request, res: Response) => {
   saveDeviceData('cdata', 'GET', req.query, null, sn);
 
   if (sn) {
-    // Upsert device in DB so we track it
     try {
-      await prisma.device.upsert({
+      // Check if device already exists
+      const existingDevice = await prisma.device.findUnique({ where: { serialNumber: sn } });
+
+      const device = await prisma.device.upsert({
         where: { serialNumber: sn },
         update: {
           isOnline: true,
@@ -48,8 +50,54 @@ router.get('/cdata', async (req: Request, res: Response) => {
           isOnline: true,
           lastActivity: new Date(),
           pushEnabled: true,
+          areaId: null, // Default to global
         },
       });
+
+      // If this is a completely new device, queue existing users for initial sync
+      if (!existingDevice) {
+        logger.info(`[Push] New device ${sn} registered. Queuing initial user sync.`);
+        // Fetch users matching the device's area (null = global users)
+        const usersToSync = await prisma.user.findMany({ where: { areaId: device.areaId } });
+        
+        let queuedCount = 0;
+        for (const user of usersToSync) {
+          // Track sync state
+          await prisma.userDevice.upsert({
+            where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
+            create: { userId: user.id, deviceId: device.id, syncedAt: null },
+            update: { syncedAt: null }
+          });
+
+          // Queue UserInfo update
+          const userCmd = `DATA UPDATE USERINFO PIN=${user.uid} Name=${user.name} Pri=${user.privilege}${user.cardNumber ? ` Card=${user.cardNumber}` : ''}`;
+          await prisma.commandQueue.create({
+            data: {
+              deviceSn: device.serialNumber,
+              commandType: 'UPDATE_USERINFO',
+              commandData: userCmd,
+              status: 'pending',
+            }
+          });
+
+          // Queue Biometrics
+          const biometrics = await prisma.biometricTemplate.findMany({ where: { uid: user.uid } });
+          for (const bio of biometrics) {
+            const cmdPrefix = bio.type === 15 ? 'DATA UPDATE FACE' : 'DATA UPDATE FINGER';
+            const bioCmd = `${cmdPrefix} PIN=${user.uid} FID=${bio.fingerId} Size=${bio.size} Valid=${bio.valid} TMP=${bio.template}`;
+            await prisma.commandQueue.create({
+              data: {
+                deviceSn: device.serialNumber,
+                commandType: 'UPDATE_BIOMETRIC',
+                commandData: bioCmd,
+                status: 'pending',
+              }
+            });
+          }
+          queuedCount++;
+        }
+        logger.info(`[Push] Queued ${queuedCount} users for new device ${sn}.`);
+      }
     } catch (dbError) {
       logger.error(`[Push] Failed to register device ${sn} in DB`, {
         error: (dbError as Error).message,
@@ -76,12 +124,17 @@ router.post('/cdata', async (req: Request, res: Response) => {
   // Save exact payload for analysis
   saveDeviceData('cdata', 'POST', req.query, rawBody, sn);
 
+  let sourceDevice = null;
   if (sn) {
-    // Update last activity
-    prisma.device.update({
-      where: { serialNumber: sn },
-      data: { isOnline: true, lastActivity: new Date() },
-    }).catch(e => logger.warn(`[Push] Error updating activity for ${sn}`, { error: e.message }));
+    try {
+      // Update last activity and fetch device for areaId
+      sourceDevice = await prisma.device.update({
+        where: { serialNumber: sn },
+        data: { isOnline: true, lastActivity: new Date() },
+      });
+    } catch (e) {
+      logger.warn(`[Push] Error updating activity for ${sn}`, { error: (e as Error).message });
+    }
   }
 
   let dbHasError = false;
@@ -162,6 +215,7 @@ router.post('/cdata', async (req: Request, res: Response) => {
       let uidStr = '';
       let name = '';
       let privilege = 0;
+      let card = '';
 
       if (line.includes('PIN=')) {
         // Key-Value format
@@ -169,12 +223,14 @@ router.post('/cdata', async (req: Request, res: Response) => {
           if (p.startsWith('PIN=')) uidStr = p.replace('PIN=', '');
           if (p.startsWith('Name=')) name = p.replace('Name=', '');
           if (p.startsWith('Pri=')) privilege = parseInt(p.replace('Pri=', ''), 10);
+          if (p.startsWith('Card=')) card = p.replace('Card=', '');
         });
       } else if (parts.length >= 2) {
         // TSV format
         uidStr = parts[0];
         name = parts[1];
         privilege = parts.length > 2 ? parseInt(parts[2], 10) : 0;
+        card = parts.length > 3 ? parts[3] : '';
       }
 
       const uid = parseInt(uidStr, 10);
@@ -186,11 +242,14 @@ router.post('/cdata', async (req: Request, res: Response) => {
               uid: uid,
               name: name || `User ${uid}`,
               privilege: isNaN(privilege) ? 0 : privilege,
+              cardNumber: card || null,
               status: 'active',
+              areaId: sourceDevice?.areaId || null,
             },
             update: {
               name: name || `User ${uid}`,
               privilege: isNaN(privilege) ? 0 : privilege,
+              cardNumber: card || null,
               status: 'active',
             }
           });
@@ -199,20 +258,31 @@ router.post('/cdata', async (req: Request, res: Response) => {
           // Trigger Webhook
           WebhookService.queueWebhook('user_synced_from_device', { deviceSn: sn, user });
 
-          // Broadcast to ALL OTHER connected devices
-          const allDevices = await prisma.device.findMany({ where: { isOnline: true } });
-          for (const device of allDevices) {
-            if (device.serialNumber !== sn) {
-              const cmdData = `DATA UPDATE USERINFO PIN=${uid} Name=${name} Pri=${user.privilege}`;
-              await prisma.commandQueue.create({
-                data: {
-                  deviceSn: device.serialNumber,
-                  commandType: 'UPDATE_USERINFO',
-                  commandData: cmdData,
-                  status: 'pending',
-                }
-              });
-            }
+          // Broadcast to ALL OTHER connected devices in the same Area
+          const targetDevices = await prisma.device.findMany({ 
+            where: { 
+              serialNumber: { not: sn },
+              areaId: user.areaId
+            } 
+          });
+          
+          for (const device of targetDevices) {
+            // Track sync state
+            await prisma.userDevice.upsert({
+              where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
+              create: { userId: user.id, deviceId: device.id, syncedAt: null },
+              update: { syncedAt: null }
+            });
+
+            const cmdData = `DATA UPDATE USERINFO PIN=${uid} Name=${name} Pri=${user.privilege}${card ? ` Card=${card}` : ''}`;
+            await prisma.commandQueue.create({
+              data: {
+                deviceSn: device.serialNumber,
+                commandType: 'UPDATE_USERINFO',
+                commandData: cmdData,
+                status: 'pending',
+              }
+            });
           }
         } catch (e) {
           logger.error(`[Push] Failed to sync user`, { error: (e as Error).message });
@@ -247,8 +317,7 @@ router.post('/cdata', async (req: Request, res: Response) => {
         try {
           const typeCode = table === 'FACE' ? 15 : 1; // 1 = Finger, 15 = Face
 
-          // @ts-ignore - Prisma client not fully regenerated due to file lock, but DB schema is updated
-          await prisma.biometricTemplate.upsert({
+          const bioTemplate = await prisma.biometricTemplate.upsert({
             where: {
               uid_type_fingerId: {
                 uid: uid,
@@ -274,10 +343,25 @@ router.post('/cdata', async (req: Request, res: Response) => {
           });
           logger.info(`[Push] Saved biometric (${table}) for UID: ${uid}`);
 
-          // Broadcast to ALL OTHER connected devices
-          const allDevices = await prisma.device.findMany({ where: { isOnline: true } });
-          for (const device of allDevices) {
-            if (device.serialNumber !== sn) {
+          // Find the user to get their Area
+          const user = await prisma.user.findUnique({ where: { uid: uid } });
+          if (user) {
+            // Broadcast to ALL OTHER devices in the same Area
+            const targetDevices = await prisma.device.findMany({ 
+              where: { 
+                serialNumber: { not: sn },
+                areaId: user.areaId
+              } 
+            });
+            
+            for (const device of targetDevices) {
+              // Track sync state
+              await prisma.userDevice.upsert({
+                where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
+                create: { userId: user.id, deviceId: device.id, syncedAt: null },
+                update: { syncedAt: null }
+              });
+
               const cmdPrefix = table === 'FACE' ? 'DATA UPDATE FACE' : 'DATA UPDATE FINGER';
               const cmdData = `${cmdPrefix} PIN=${uidStr} FID=${fidStr} Size=${sizeStr} Valid=${validStr} TMP=${tmp}`;
               
@@ -403,10 +487,23 @@ router.post('/devicecmd', async (req: Request, res: Response) => {
               // Extract PIN
               const pinMatch = cmd.commandData.match(/PIN=(\d+)/);
               if (pinMatch && pinMatch[1]) {
+                const uid = parseInt(pinMatch[1], 10);
                 await prisma.user.updateMany({
-                  where: { uid: parseInt(pinMatch[1], 10) },
+                  where: { uid: uid },
                   data: { status: 'active' }
                 });
+
+                // Update UserDevice syncedAt
+                const user = await prisma.user.findUnique({ where: { uid: uid } });
+                const device = await prisma.device.findUnique({ where: { serialNumber: sn } });
+                if (user && device) {
+                  await prisma.userDevice.upsert({
+                    where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
+                    create: { userId: user.id, deviceId: device.id, syncedAt: new Date() },
+                    update: { syncedAt: new Date() }
+                  });
+                  logger.info(`[Sync] User ${uid} successfully synced to device ${sn}`);
+                }
               }
             } else if (cmd.commandData.startsWith('DATA DELETE USERINFO')) {
               const pinMatch = cmd.commandData.match(/PIN=(\d+)/);
@@ -444,10 +541,23 @@ router.post('/devicecmd', async (req: Request, res: Response) => {
             // Extract PIN
             const pinMatch = cmd.commandData.match(/PIN=(\d+)/);
             if (pinMatch && pinMatch[1]) {
+              const uid = parseInt(pinMatch[1], 10);
               await prisma.user.updateMany({
-                where: { uid: parseInt(pinMatch[1], 10) },
+                where: { uid: uid },
                 data: { status: 'active' }
               });
+
+              // Update UserDevice syncedAt
+              const user = await prisma.user.findUnique({ where: { uid: uid } });
+              const device = await prisma.device.findUnique({ where: { serialNumber: sn } });
+              if (user && device) {
+                await prisma.userDevice.upsert({
+                  where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
+                  create: { userId: user.id, deviceId: device.id, syncedAt: new Date() },
+                  update: { syncedAt: new Date() }
+                });
+                logger.info(`[Sync] User ${uid} successfully synced to device ${sn}`);
+              }
             }
           } else if (cmd.commandData.startsWith('DATA DELETE USERINFO')) {
             const pinMatch = cmd.commandData.match(/PIN=(\d+)/);

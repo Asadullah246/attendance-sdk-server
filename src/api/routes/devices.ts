@@ -37,5 +37,165 @@ router.get('/:sn', asyncHandler(async (req: Request, res: Response) => {
 
   res.json(successResponse(device, 'Device fetched successfully'));
 }));
+/**
+ * GET /api/v1/devices/:sn/sync-status
+ * Get the list of users pending sync for a device
+ */
+router.get('/:sn/sync-status', asyncHandler(async (req: Request, res: Response) => {
+  const sn = req.params.sn as string;
+  const device = await prisma.device.findUnique({
+    where: { serialNumber: sn },
+    include: { area: true }
+  });
+
+  if (!device) {
+    return res.status(404).json(errorResponse('Device not found', 404));
+  }
+
+  const pendingSyncs = await prisma.userDevice.findMany({
+    where: {
+      deviceId: device.id,
+      syncedAt: null,
+    },
+    include: { user: true },
+  });
+
+  res.json(successResponse({
+    pendingCount: pendingSyncs.length,
+    pendingUsers: pendingSyncs.map(ps => ({
+      uid: ps.user.uid,
+      name: ps.user.name,
+    })),
+  }, 'Sync status fetched successfully'));
+}));
+
+/**
+ * POST /api/v1/devices/:sn/retry-sync
+ * Re-queue sync commands for all pending users on a device
+ */
+router.post('/:sn/retry-sync', asyncHandler(async (req: Request, res: Response) => {
+  const sn = req.params.sn as string;
+  const device = await prisma.device.findUnique({
+    where: { serialNumber: sn },
+  });
+
+  if (!device) {
+    return res.status(404).json(errorResponse('Device not found', 404));
+  }
+
+  const pendingSyncs = await prisma.userDevice.findMany({
+    where: {
+      deviceId: device.id,
+      syncedAt: null,
+    },
+    include: { user: true },
+  });
+
+  let queuedCount = 0;
+  for (const ps of pendingSyncs) {
+    const user = ps.user;
+    
+    // Queue UserInfo update
+    const userCmd = `DATA UPDATE USERINFO PIN=${user.uid} Name=${user.name} Pri=${user.privilege}${user.cardNumber ? ` Card=${user.cardNumber}` : ''}`;
+    await prisma.commandQueue.create({
+      data: {
+        deviceSn: device.serialNumber,
+        commandType: 'UPDATE_USERINFO',
+        commandData: userCmd,
+        status: 'pending',
+      }
+    });
+
+    // Queue Biometrics (Fingers & Faces)
+    const biometrics = await prisma.biometricTemplate.findMany({
+      where: { uid: user.uid }
+    });
+
+    for (const bio of biometrics) {
+      const cmdPrefix = bio.type === 15 ? 'DATA UPDATE FACE' : 'DATA UPDATE FINGER';
+      const bioCmd = `${cmdPrefix} PIN=${user.uid} FID=${bio.fingerId} Size=${bio.size} Valid=${bio.valid} TMP=${bio.template}`;
+      await prisma.commandQueue.create({
+        data: {
+          deviceSn: device.serialNumber,
+          commandType: 'UPDATE_BIOMETRIC',
+          commandData: bioCmd,
+          status: 'pending',
+        }
+      });
+    }
+    
+    queuedCount++;
+  }
+
+  res.json(successResponse({ queuedCount }, `Re-queued ${queuedCount} users for sync`));
+}));
+
+/**
+ * PATCH /api/v1/devices/:sn
+ * Update device (e.g., assign Area) and trigger initial user sync for that area
+ */
+router.patch('/:sn', asyncHandler(async (req: Request, res: Response) => {
+  const sn = req.params.sn as string;
+  const { name, areaId } = req.body;
+
+  const device = await prisma.device.findUnique({ where: { serialNumber: sn } });
+  if (!device) {
+    return res.status(404).json(errorResponse('Device not found', 404));
+  }
+
+  const updatedDevice = await prisma.device.update({
+    where: { serialNumber: sn },
+    data: {
+      name: name !== undefined ? name : undefined,
+      areaId: areaId !== undefined ? areaId : undefined,
+    },
+  });
+
+  // If area was assigned/changed, queue sync for users in that area
+  if (areaId !== undefined && areaId !== device.areaId) {
+    console.log(`[Sync] Device ${sn} assigned to Area ${areaId}. Queueing users...`);
+    const usersInArea = await prisma.user.findMany({ where: { areaId: areaId } });
+    
+    let queuedCount = 0;
+    for (const user of usersInArea) {
+      // Create UserDevice tracking
+      await prisma.userDevice.upsert({
+        where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
+        create: { userId: user.id, deviceId: device.id, syncedAt: null },
+        update: { syncedAt: null }
+      });
+
+      // Queue UserInfo update
+      const userCmd = `DATA UPDATE USERINFO PIN=${user.uid} Name=${user.name} Pri=${user.privilege}${user.cardNumber ? ` Card=${user.cardNumber}` : ''}`;
+      await prisma.commandQueue.create({
+        data: {
+          deviceSn: device.serialNumber,
+          commandType: 'UPDATE_USERINFO',
+          commandData: userCmd,
+          status: 'pending',
+        }
+      });
+
+      // Queue Biometrics
+      const biometrics = await prisma.biometricTemplate.findMany({ where: { uid: user.uid } });
+      for (const bio of biometrics) {
+        const cmdPrefix = bio.type === 15 ? 'DATA UPDATE FACE' : 'DATA UPDATE FINGER';
+        const bioCmd = `${cmdPrefix} PIN=${user.uid} FID=${bio.fingerId} Size=${bio.size} Valid=${bio.valid} TMP=${bio.template}`;
+        await prisma.commandQueue.create({
+          data: {
+            deviceSn: device.serialNumber,
+            commandType: 'UPDATE_BIOMETRIC',
+            commandData: bioCmd,
+            status: 'pending',
+          }
+        });
+      }
+      queuedCount++;
+    }
+    console.log(`[Sync] Queued ${queuedCount} users for device ${sn}`);
+  }
+
+  res.json(successResponse(updatedDevice, 'Device updated successfully'));
+}));
 
 export default router;

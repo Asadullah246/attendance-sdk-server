@@ -25,10 +25,12 @@ model Device {
   isOnline     Boolean   @default(false) @map("is_online")
   lastActivity DateTime? @map("last_activity")
   pushEnabled  Boolean   @default(true) @map("push_enabled")
+  areaId       Int?      @map("area_id")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   // Relations
+  area         Area?        @relation(fields: [areaId], references: [id])
   userDevices  UserDevice[]
   commandQueue CommandQueue[]
 
@@ -45,11 +47,13 @@ model User {
   privilege  Int      @default(0) // 0=User, 14=SuperAdmin
   password   String?
   status     String   @default("active") // pending_add, active, pending_delete
+  areaId     Int?     @map("area_id")
   defaultTimetableId Int? @map("default_timetable_id")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   // Relations
+  area               Area?               @relation(fields: [areaId], references: [id])
   userDevices        UserDevice[]
   biometricTemplates BiometricTemplate[]
 
@@ -267,4 +271,20 @@ model Holiday {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("holidays")
+}
+
+// ─── Area ────────────────────────────────────────────────────────────
+// Logical grouping of devices and users (e.g. "4th Floor", "Main Gate")
+model Area {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  devices     Device[]
+  users       User[]
+
+  @@map("areas")
 }
