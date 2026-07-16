@@ -22,6 +22,18 @@ const sendADMSResponse = (res: Response, content: string = 'OK\n') => {
 };
 
 /**
+ * 0. POST /iclock/registry
+ * Some modern ZKTeco devices require a registry endpoint to complete their initial handshake.
+ * If this returns 404, they refuse to poll /iclock/getrequest.
+ */
+router.post('/registry', (req: Request, res: Response) => {
+  const sn = req.query.SN as string;
+  logger.info(`[Push] Device Registry Request - SN: ${sn}`);
+  // Returning OK makes the device think it's properly registered and it will begin polling.
+  sendADMSResponse(res, 'Registry=OK\n');
+});
+
+/**
  * 1. GET /iclock/cdata
  * Device Handshake / Initialization.
  * The device sends its SN and options, expecting the server to send configuration/commands.
