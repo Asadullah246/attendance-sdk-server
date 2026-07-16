@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { getPrisma } from '../../database/prisma';
 import { successResponse, errorResponse } from '../../utils/helpers';
+import { buildUserInfoCommand, buildBiometricCommand } from '../../utils/commandBuilder';
 import '../dtos/device.dto';
 
 const router = Router();
@@ -96,8 +97,8 @@ router.post('/:sn/retry-sync', asyncHandler(async (req: Request, res: Response) 
   for (const ps of pendingSyncs) {
     const user = ps.user;
     
-    // Queue UserInfo update
-    const userCmd = `DATA UPDATE USERINFO PIN=${user.uid} Name=${user.name} Pri=${user.privilege}${user.cardNumber ? ` Card=${user.cardNumber}` : ''}`;
+    // Queue UserInfo update (TAB-separated per ADMS spec)
+    const userCmd = buildUserInfoCommand(user.uid, user.name, user.privilege, user.cardNumber);
     await prisma.commandQueue.create({
       data: {
         deviceSn: device.serialNumber,
@@ -107,14 +108,21 @@ router.post('/:sn/retry-sync', asyncHandler(async (req: Request, res: Response) 
       }
     });
 
-    // Queue Biometrics (Fingers & Faces)
+    // Queue Biometrics (BIODATA for face, templatev10 for fingerprint)
     const biometrics = await prisma.biometricTemplate.findMany({
       where: { uid: user.uid }
     });
 
     for (const bio of biometrics) {
-      const cmdPrefix = bio.type === 15 ? 'DATA UPDATE FACE' : 'DATA UPDATE FINGER';
-      const bioCmd = `${cmdPrefix} PIN=${user.uid} FID=${bio.fingerId} Size=${bio.size} Valid=${bio.valid} TMP=${bio.template}`;
+      const bioCmd = buildBiometricCommand({
+        uid: user.uid,
+        type: bio.type,
+        fingerId: bio.fingerId ?? 0,
+        size: bio.size ?? 0,
+        valid: bio.valid,
+        template: bio.template,
+        rawData: bio.rawData,
+      });
       await prisma.commandQueue.create({
         data: {
           deviceSn: device.serialNumber,
@@ -166,8 +174,8 @@ router.patch('/:sn', asyncHandler(async (req: Request, res: Response) => {
         update: { syncedAt: null }
       });
 
-      // Queue UserInfo update
-      const userCmd = `DATA UPDATE USERINFO PIN=${user.uid} Name=${user.name} Pri=${user.privilege}${user.cardNumber ? ` Card=${user.cardNumber}` : ''}`;
+      // Queue UserInfo update (TAB-separated per ADMS spec)
+      const userCmd = buildUserInfoCommand(user.uid, user.name, user.privilege, user.cardNumber);
       await prisma.commandQueue.create({
         data: {
           deviceSn: device.serialNumber,
@@ -177,11 +185,18 @@ router.patch('/:sn', asyncHandler(async (req: Request, res: Response) => {
         }
       });
 
-      // Queue Biometrics
+      // Queue Biometrics (BIODATA for face, templatev10 for fingerprint)
       const biometrics = await prisma.biometricTemplate.findMany({ where: { uid: user.uid } });
       for (const bio of biometrics) {
-        const cmdPrefix = bio.type === 15 ? 'DATA UPDATE FACE' : 'DATA UPDATE FINGER';
-        const bioCmd = `${cmdPrefix} PIN=${user.uid} FID=${bio.fingerId} Size=${bio.size} Valid=${bio.valid} TMP=${bio.template}`;
+        const bioCmd = buildBiometricCommand({
+          uid: user.uid,
+          type: bio.type,
+          fingerId: bio.fingerId ?? 0,
+          size: bio.size ?? 0,
+          valid: bio.valid,
+          template: bio.template,
+          rawData: bio.rawData,
+        });
         await prisma.commandQueue.create({
           data: {
             deviceSn: device.serialNumber,

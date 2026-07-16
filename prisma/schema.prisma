@@ -84,6 +84,7 @@ model BiometricTemplate {
   size      Int?
   valid     Int      @default(1)
   template  String   @db.Text
+  rawData   String?  @map("raw_data") @db.Text // Original device line for exact command replay
   deviceSn  String?  @map("device_sn") // Device where it was enrolled
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

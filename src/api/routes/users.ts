@@ -25,12 +25,13 @@ router.post('/',
   validateRequest(z.object({ body: CreateUserBodySchema })),
   asyncHandler(async (req: Request, res: Response) => {
     const { uid, name, privilege, deviceSn, defaultTimetableId } = req.body;
+    const numericUid = parseInt(uid, 10);
 
-    // 1. Save to database
+    // 1. Save to database (use uid, NOT id — id is the auto-increment PK)
     const user = await prisma.user.upsert({
-      where: { id: parseInt(uid, 10) },
+      where: { uid: numericUid },
       create: {
-        uid: parseInt(uid, 10),
+        uid: numericUid,
         name,
         privilege: privilege ? parseInt(privilege, 10) : 0,
         status: 'pending_add',
@@ -44,7 +45,10 @@ router.post('/',
       }
     });
 
-    // 2. Queue command to device(s)
+    // 2. Fetch existing biometric templates for this user (if any)
+    const biometrics = await prisma.biometricTemplate.findMany({ where: { uid: numericUid } });
+
+    // 3. Queue command to device(s)
     if (!deviceSn) {
       // Global Access: Push to ALL devices
       const devices = await prisma.device.findMany({ where: { isOnline: true } });
@@ -52,17 +56,61 @@ router.post('/',
         return res.status(400).json(errorResponse('No online devices found to sync user to', 400));
       }
       for (const device of devices) {
-        await CommandService.addUser(device.serialNumber, user.uid, user.name, user.privilege);
+        // Track sync state
+        await prisma.userDevice.upsert({
+          where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
+          create: { userId: user.id, deviceId: device.id, syncedAt: null },
+          update: { syncedAt: null }
+        });
+
+        await CommandService.addUser(device.serialNumber, user.uid, user.name, user.privilege, user.cardNumber);
+
+        // Push biometric templates too
+        for (const bio of biometrics) {
+          await CommandService.addBiometric(device.serialNumber, {
+            uid: user.uid,
+            type: bio.type,
+            fingerId: bio.fingerId ?? 0,
+            size: bio.size ?? 0,
+            valid: bio.valid,
+            template: bio.template,
+            rawData: bio.rawData,
+          });
+        }
       }
       res.json(successResponse({ user }, `User ${user.name} created and command queued for all devices`));
     } else {
       // Zone Access: Push to a specific device
+      const device = await prisma.device.findUnique({ where: { serialNumber: deviceSn } });
+      if (device) {
+        await prisma.userDevice.upsert({
+          where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
+          create: { userId: user.id, deviceId: device.id, syncedAt: null },
+          update: { syncedAt: null }
+        });
+      }
+
       const cmdResult = await CommandService.addUser(
         deviceSn, 
         user.uid, 
         user.name, 
-        user.privilege
+        user.privilege,
+        user.cardNumber
       );
+
+      // Push biometric templates too
+      for (const bio of biometrics) {
+        await CommandService.addBiometric(deviceSn, {
+          uid: user.uid,
+          type: bio.type,
+          fingerId: bio.fingerId ?? 0,
+          size: bio.size ?? 0,
+          valid: bio.valid,
+          template: bio.template,
+          rawData: bio.rawData,
+        });
+      }
+
       res.json(successResponse({ user, commandId: cmdResult.commandId }, `User ${user.name} created and command queued for ${deviceSn}`));
     }
   })
