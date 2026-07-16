@@ -256,11 +256,14 @@ router.post('/cdata', async (req: Request, res: Response) => {
   }
 
   // Parse USERINFO (User Sync from device)
-  if ((table === 'USER' || table === 'USERINFO') && typeof rawBody === 'string') {
+  if ((table === 'USER' || table === 'USERINFO' || table === 'OPERLOG') && typeof rawBody === 'string') {
     const lines = rawBody.split('\n').filter(l => l.trim() !== '');
     for (const line of lines) {
+      // Ignore OPLOG events here, as they were handled above
+      if (line.startsWith('OPLOG')) continue;
+
       // Could be TSV like: PIN\tName\tPri\tPass\tCard...
-      // Or Key-Value like: PIN=1\tName=John...
+      // Or Key-Value like: USER PIN=1\tName=John...
       const parts = line.split('\t');
       let uidStr = '';
       let name = '';
@@ -271,6 +274,7 @@ router.post('/cdata', async (req: Request, res: Response) => {
         // Key-Value format
         parts.forEach(p => {
           if (p.startsWith('PIN=')) uidStr = p.replace('PIN=', '');
+          if (p.startsWith('USER PIN=')) uidStr = p.replace('USER PIN=', '');
           if (p.startsWith('Name=')) name = p.replace('Name=', '');
           if (p.startsWith('Pri=')) privilege = parseInt(p.replace('Pri=', ''), 10);
           if (p.startsWith('Card=')) card = p.replace('Card=', '');
