@@ -1,5 +1,6 @@
 import { getPrisma } from '../database/prisma';
 import logger from '../utils/logger';
+import { buildUserInfoCommand, buildDeleteUserCommand, buildBiometricCommand, BiometricData } from '../utils/commandBuilder';
 
 const prisma = getPrisma();
 
@@ -64,12 +65,8 @@ export class CommandService {
   /**
    * Adds or updates a user on the device
    */
-  static async addUser(sn: string, uid: number, name: string, privilege: number = 0, password?: string) {
-    // Basic ADMS format: DATA UPDATE USERINFO PIN=1\tName=John\tPri=0
-    let commandStr = `DATA UPDATE USERINFO PIN=${uid}\tName=${name}\tPri=${privilege}`;
-    if (password) {
-      commandStr += `\tPass=${password}`;
-    }
+  static async addUser(sn: string, uid: number, name: string, privilege: number = 0, card?: string | null, password?: string | null) {
+    const commandStr = buildUserInfoCommand(uid, name, privilege, card, password);
     return this.enqueue(sn, 'add_user', commandStr);
   }
 
@@ -77,7 +74,38 @@ export class CommandService {
    * Deletes a user from the device
    */
   static async deleteUser(sn: string, uid: number) {
-    return this.enqueue(sn, 'delete_user', `DATA DELETE USERINFO PIN=${uid}`);
+    return this.enqueue(sn, 'delete_user', buildDeleteUserCommand(uid));
+  }
+
+  /**
+   * Pushes a biometric template (face/fingerprint) to the device
+   */
+  static async addBiometric(sn: string, bio: BiometricData) {
+    const commandStr = buildBiometricCommand(bio);
+    return this.enqueue(sn, 'add_biometric', commandStr);
+  }
+
+  /**
+   * Cleans up completed/failed commands older than the specified number of days
+   * to prevent the database from growing indefinitely.
+   */
+  static async cleanupOldCommands(days: number = 30) {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - days);
+
+      const result = await prisma.commandQueue.deleteMany({
+        where: {
+          status: { in: ['completed', 'failed'] },
+          completedAt: { lt: cutoffDate }
+        }
+      });
+      if (result.count > 0) {
+        logger.info(`[CommandService] Cleaned up ${result.count} old commands from the queue.`);
+      }
+    } catch (error) {
+      logger.error(`[CommandService] Error cleaning up old commands`, { error: (error as Error).message });
+    }
   }
 
   /**

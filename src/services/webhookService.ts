@@ -10,10 +10,19 @@ export class WebhookService {
    */
   static async queueWebhook(eventType: string, payload: any) {
     try {
-      const webhookUrl = config.mainAppWebhookUrl;
+      let webhookUrl = '';
+
+      if (eventType === 'time_card') {
+        webhookUrl = config.timeCardWebhookUrl;
+      } else if (eventType === 'raw_attendance') {
+        webhookUrl = config.rawAttendanceWebhookUrl;
+      } else {
+        webhookUrl = config.commandWebhookUrl;
+      }
       
       if (!webhookUrl) {
-        logger.warn(`[WebhookService] Skipping webhook ${eventType} because MAIN_APP_WEBHOOK_URL is not set in .env`);
+        // Silently skip if the specific webhook is not configured
+        logger.warn(`[WebhookService] Skipping webhook ${eventType} because its URL is not set in .env`);
         return;
       }
 
@@ -46,19 +55,19 @@ export class WebhookService {
           ]
         },
         orderBy: { createdAt: 'asc' },
-        take: 20 // Process in batches
+        take: 100 // Process in larger batches
       });
 
       if (queue.length === 0) return;
 
-      for (const item of queue) {
+      const promises = queue.map(async (item) => {
         try {
           const response = await fetch(item.url, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'X-ZKTeco-Event': item.eventType,
-              'x-webhook-secret': config.webhookSecret,
+              'x-api-key': config.webhookSecret,
             },
             body: item.payload,
             // Timeout after 5 seconds to prevent hanging
@@ -91,9 +100,34 @@ export class WebhookService {
           });
           logger.warn(`[WebhookService] Delivery failed for webhook ${item.id} to ${item.url} (Attempt ${newRetryCount})`, { error: errorMessage });
         }
-      }
+      });
+
+      await Promise.allSettled(promises);
     } catch (error) {
       logger.error(`[WebhookService] Queue processing error`, { error: (error as Error).message });
+    }
+  }
+
+  /**
+   * Cleans up successfully delivered or dead webhooks older than the specified number of days
+   * to prevent the database from growing indefinitely.
+   */
+  static async cleanupOldWebhooks(days: number = 7) {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - days);
+
+      const result = await prisma.webhookQueue.deleteMany({
+        where: {
+          status: { in: ['success', 'dead'] },
+          updatedAt: { lt: cutoffDate }
+        }
+      });
+      if (result.count > 0) {
+        logger.info(`[WebhookService] Cleaned up ${result.count} old webhooks from the queue.`);
+      }
+    } catch (error) {
+      logger.error(`[WebhookService] Error cleaning up old webhooks`, { error: (error as Error).message });
     }
   }
 }

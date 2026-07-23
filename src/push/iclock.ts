@@ -3,6 +3,9 @@ import logger from '../utils/logger';
 import { saveDeviceData } from '../utils/dataLogger';
 import { getPrisma } from '../database/prisma';
 import { WebhookService } from '../services/webhookService';
+import { AttendanceCalculationService } from '../services/attendanceCalculationService';
+import { buildUserInfoCommand, buildBiometricCommand } from '../utils/commandBuilder';
+import config from '../config';
 
 const router = Router();
 const prisma = getPrisma();
@@ -14,10 +17,24 @@ const prisma = getPrisma();
  * Common response for ZKTeco ADMS push protocol.
  * The device expects a plain text "OK" to acknowledge receipt.
  */
-const sendADMSResponse = (res: Response, content: string = 'OK\n') => {
+const sendADMSResponse = (res: Response, content: string = 'OK\r\n') => {
   res.setHeader('Content-Type', 'text/plain');
-  res.send(content);
+  // Ensure we use \r\n (CRLF) for all line endings, as ZKTeco C-firmware parsers will fail with just \n
+  const safeContent = content.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n');
+  res.send(safeContent);
 };
+
+/**
+ * 0. POST /iclock/registry
+ * Some modern ZKTeco devices require a registry endpoint to complete their initial handshake.
+ * If this returns 404, they refuse to poll /iclock/getrequest.
+ */
+router.post('/registry', (req: Request, res: Response) => {
+  const sn = req.query.SN as string;
+  logger.info(`[Push] Device Registry Request - SN: ${sn}`);
+  // Some devices expect just a standard 'OK' to complete registration
+  sendADMSResponse(res);
+});
 
 /**
  * 1. GET /iclock/cdata
@@ -32,9 +49,11 @@ router.get('/cdata', async (req: Request, res: Response) => {
   saveDeviceData('cdata', 'GET', req.query, null, sn);
 
   if (sn) {
-    // Upsert device in DB so we track it
     try {
-      await prisma.device.upsert({
+      // Check if device already exists
+      const existingDevice = await prisma.device.findUnique({ where: { serialNumber: sn } });
+
+      const device = await prisma.device.upsert({
         where: { serialNumber: sn },
         update: {
           isOnline: true,
@@ -46,8 +65,63 @@ router.get('/cdata', async (req: Request, res: Response) => {
           isOnline: true,
           lastActivity: new Date(),
           pushEnabled: true,
+          areaId: null, // Default to global
         },
       });
+
+      // If this is a completely new device, queue existing users for initial sync
+      if (!existingDevice) {
+        logger.info(`[Push] New device ${sn} registered. Queuing initial user sync.`);
+        // Fetch users matching the device's area.
+        // If the device has no area (null), sync ALL users.
+        const userFilter = device.areaId !== null ? { areaId: device.areaId } : {};
+        const usersToSync = await prisma.user.findMany({ where: userFilter });
+        
+        let queuedCount = 0;
+        for (const user of usersToSync) {
+          // Track sync state
+          await prisma.userDevice.upsert({
+            where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
+            create: { userId: user.id, deviceId: device.id, syncedAt: null },
+            update: { syncedAt: null }
+          });
+
+          // Queue UserInfo update (TAB-separated per ADMS spec)
+          const userCmd = buildUserInfoCommand(user.uid, user.name, user.privilege, user.cardNumber);
+          await prisma.commandQueue.create({
+            data: {
+              deviceSn: device.serialNumber,
+              commandType: 'UPDATE_USERINFO',
+              commandData: userCmd,
+              status: 'pending',
+            }
+          });
+
+          // Queue Biometrics (BIODATA for face, templatev10 for fingerprint)
+          const biometrics = await prisma.biometricTemplate.findMany({ where: { uid: user.uid } });
+          for (const bio of biometrics) {
+            const bioCmd = buildBiometricCommand({
+              uid: user.uid,
+              type: bio.type,
+              fingerId: bio.fingerId ?? 0,
+              size: bio.size ?? 0,
+              valid: bio.valid,
+              template: bio.template,
+              rawData: bio.rawData,
+            });
+            await prisma.commandQueue.create({
+              data: {
+                deviceSn: device.serialNumber,
+                commandType: 'UPDATE_BIOMETRIC',
+                commandData: bioCmd,
+                status: 'pending',
+              }
+            });
+          }
+          queuedCount++;
+        }
+        logger.info(`[Push] Queued ${queuedCount} users for new device ${sn}.`);
+      }
     } catch (dbError) {
       logger.error(`[Push] Failed to register device ${sn} in DB`, {
         error: (dbError as Error).message,
@@ -55,9 +129,10 @@ router.get('/cdata', async (req: Request, res: Response) => {
     }
   }
 
-  // ADMS requires returning registry configuration. A simple OK often suffices
-  // but returning Registry=OK or typical config is safer.
-  sendADMSResponse(res, 'Registry=OK\n');
+  // Return proper ADMS initialization options so the device knows how to poll
+  // TransFlag=1111111111 tells the device to push ALL data (including BIODATA/fingerprints)
+  const optionsResponse = `GET OPTION FROM: ${sn}\r\nStamp=9999\r\nOpStamp=9999\r\nErrorDelay=60\r\nDelay=10\r\nTransTimes=00:00;14:00\r\nTransInterval=1\r\nTransFlag=1111111111\r\nTimeZone=${config.deviceTimezoneOffset}\r\nRealtime=1\r\nEncrypt=0\r\n`;
+  sendADMSResponse(res, optionsResponse);
 });
 
 /**
@@ -70,16 +145,22 @@ router.post('/cdata', async (req: Request, res: Response) => {
   const rawBody = req.body; // text/plain payload
 
   logger.info(`[Push] Data Received from ${sn} for table ${table}`);
+  logger.info(`[Push Raw Data] \n${typeof rawBody === 'object' ? JSON.stringify(rawBody, null, 2) : rawBody}`);
   
   // Save exact payload for analysis
   saveDeviceData('cdata', 'POST', req.query, rawBody, sn);
 
+  let sourceDevice = null;
   if (sn) {
-    // Update last activity
-    prisma.device.update({
-      where: { serialNumber: sn },
-      data: { isOnline: true, lastActivity: new Date() },
-    }).catch(e => logger.warn(`[Push] Error updating activity for ${sn}`, { error: e.message }));
+    try {
+      // Update last activity and fetch device for areaId
+      sourceDevice = await prisma.device.update({
+        where: { serialNumber: sn },
+        data: { isOnline: true, lastActivity: new Date() },
+      });
+    } catch (e) {
+      logger.warn(`[Push] Error updating activity for ${sn}`, { error: (e as Error).message });
+    }
   }
 
   let dbHasError = false;
@@ -88,20 +169,32 @@ router.post('/cdata', async (req: Request, res: Response) => {
   if (table === 'ATTLOG' && typeof rawBody === 'string') {
     const lines = rawBody.split('\n').filter(l => l.trim() !== '');
     for (const line of lines) {
-      // Example format: 1\t2026-07-13 12:17:51\t255\t1\t0\t0\t0\t0\t0\t0\t
+      // ADMS standard: PIN \t Timestamp \t Status \t VerifyMode \t WorkCode ...
+      // Some SenseFace 3A firmware sends Status and VerifyMode swapped.
+      // We use heuristic detection: Status is 0-5, VerifyMode is typically 0,1,4,15,25,200+
       const parts = line.split('\t');
       if (parts.length >= 2) {
         const uid = parseInt(parts[0], 10);
         const timestampStr = parts[1]; // YYYY-MM-DD HH:MM:SS
-        const state = parts.length > 2 ? parseInt(parts[2], 10) : null;
-        const verifyType = parts.length > 3 ? parseInt(parts[3], 10) : null;
+        let state = parts.length > 2 ? parseInt(parts[2], 10) : null;
+        let verifyType = parts.length > 3 ? parseInt(parts[3], 10) : null;
+
+        // Heuristic: if "state" (pos 3) is > 5, it's probably VerifyMode, not Status
+        // Status values: 0=CheckIn, 1=CheckOut, 2=BreakOut, 3=BreakIn, 4=OTIn, 5=OTOut
+        // VerifyMode values: 0=Password, 1=Finger, 4=Card, 15=Face, 25=Palm, 200+=Other
+        if (state !== null && verifyType !== null && state > 5) {
+          // Swap: position 3 is actually VerifyMode, position 4 is Status
+          const tmp = state;
+          state = verifyType;
+          verifyType = tmp;
+          logger.debug(`[Push] ATTLOG heuristic swap applied for UID ${uid}: Status=${state}, Verify=${verifyType}`);
+        }
 
         if (!isNaN(uid) && timestampStr) {
           try {
-            // The device sends local time (BD time) without a timezone: '2026-07-13 12:17:51'
-            // We append +06:00 so the Node.js server correctly parses it as Bangladesh time, 
-            // even if the server is deployed in UTC (like AWS).
-            const bdTimeStr = timestampStr.replace(' ', 'T') + '+06:00';
+            // The device sends local time without a timezone: '2026-07-13 12:17:51'
+            // We append the configured timezone offset so the Node.js server correctly parses it.
+            const bdTimeStr = timestampStr.replace(' ', 'T') + config.deviceTimezoneOffset;
             const punchTimeDate = new Date(bdTimeStr);
 
             const log = await prisma.attendanceLog.upsert({
@@ -126,7 +219,23 @@ router.post('/cdata', async (req: Request, res: Response) => {
             logger.info(`[Push] Saved attendance for UID: ${uid} at ${timestampStr}`);
             
             // Trigger Webhook
-            WebhookService.queueWebhook('attendance', log);
+            WebhookService.queueWebhook('raw_attendance', log);
+
+            // --- LIVE CALCULATION ---
+            // Trigger calculation asynchronously for Today and Yesterday
+            // We do Yesterday to safely catch punches belonging to night-shifts
+            const todayStr = punchTimeDate.toISOString().split('T')[0];
+            const yesterdayDate = new Date(punchTimeDate);
+            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
+
+            AttendanceCalculationService.calculateLiveForEmployee(uid, todayStr).catch(e => 
+              logger.error(`[LiveCalc] Error for ${uid} on ${todayStr}`, { error: e.message })
+            );
+            AttendanceCalculationService.calculateLiveForEmployee(uid, yesterdayStr).catch(e => 
+              logger.error(`[LiveCalc] Error for ${uid} on ${yesterdayStr}`, { error: e.message })
+            );
+
           } catch (e) {
             logger.error(`[Push] Failed to save attendance`, { error: (e as Error).message });
             dbHasError = true;
@@ -135,45 +244,91 @@ router.post('/cdata', async (req: Request, res: Response) => {
       }
     }
   }
-  // Parse USERINFO (User Sync from device)
-  if ((table === 'USER' || table === 'USERINFO') && typeof rawBody === 'string') {
+
+  // Parse OPERLOG (Settings / User Updates made on the device itself)
+  if (table === 'OPERLOG' && typeof rawBody === 'string') {
     const lines = rawBody.split('\n').filter(l => l.trim() !== '');
     for (const line of lines) {
+      // Format: OPLOG OpType\tParam1\tTime\tParam2\tParam3\tParam4\tParam5
+      // Example: OPLOG 114\t0\t2026-07-16 21:56:56\t5\t0\t0\t0
+      // Param2 (4th field) is the affected user's PIN
+      const match = line.match(/^OPLOG\s+(\d+)\t[^\t]+\t[^\t]+\t(\d+)/);
+      if (match && sn) {
+        const opType = parseInt(match[1], 10);
+        const uid = match[2];
+        
+        // Known OpTypes for user changes on SenseFace 3A:
+        // 1: add user, 4: update user, 101: user updated, 114: face enrolled
+        // This means a Card, Name, Face, or Privilege was changed on the hardware.
+        if ([1, 4, 101, 114].includes(opType) && uid) {
+          try {
+            await prisma.commandQueue.create({
+              data: {
+                deviceSn: sn,
+                commandType: 'QUERY_USER',
+                commandData: `DATA QUERY USERINFO PIN=${uid}`,
+                status: 'pending',
+              }
+            });
+            logger.info(`[Push] Device ${sn} OpType ${opType} for User ${uid}. Queued QUERY command.`);
+          } catch(e) {
+            logger.error(`[Push] Failed to queue QUERY_USER`, { error: (e as Error).message });
+            dbHasError = true;
+          }
+        }
+      }
+    }
+  }
+
+  // Parse USERINFO (User Sync from device)
+  if ((table === 'USER' || table === 'USERINFO' || table === 'OPERLOG') && typeof rawBody === 'string') {
+    const lines = rawBody.split('\n').filter(l => l.trim() !== '');
+    for (const line of lines) {
+      // Ignore OPLOG events here, as they were handled above
+      if (line.startsWith('OPLOG')) continue;
+
       // Could be TSV like: PIN\tName\tPri\tPass\tCard...
-      // Or Key-Value like: PIN=1\tName=John...
+      // Or Key-Value like: USER PIN=1\tName=John...
       const parts = line.split('\t');
       let uidStr = '';
       let name = '';
       let privilege = 0;
+      let card = '';
 
       if (line.includes('PIN=')) {
         // Key-Value format
         parts.forEach(p => {
           if (p.startsWith('PIN=')) uidStr = p.replace('PIN=', '');
+          if (p.startsWith('USER PIN=')) uidStr = p.replace('USER PIN=', '');
           if (p.startsWith('Name=')) name = p.replace('Name=', '');
           if (p.startsWith('Pri=')) privilege = parseInt(p.replace('Pri=', ''), 10);
+          if (p.startsWith('Card=')) card = p.replace('Card=', '');
         });
       } else if (parts.length >= 2) {
         // TSV format
         uidStr = parts[0];
         name = parts[1];
         privilege = parts.length > 2 ? parseInt(parts[2], 10) : 0;
+        card = parts.length > 3 ? parts[3] : '';
       }
 
       const uid = parseInt(uidStr, 10);
       if (!isNaN(uid)) {
         try {
           const user = await prisma.user.upsert({
-            where: { id: uid },
+            where: { uid: uid },
             create: {
               uid: uid,
               name: name || `User ${uid}`,
               privilege: isNaN(privilege) ? 0 : privilege,
+              cardNumber: card || null,
               status: 'active',
+              areaId: sourceDevice?.areaId || null,
             },
             update: {
               name: name || `User ${uid}`,
               privilege: isNaN(privilege) ? 0 : privilege,
+              cardNumber: card || null,
               status: 'active',
             }
           });
@@ -182,20 +337,31 @@ router.post('/cdata', async (req: Request, res: Response) => {
           // Trigger Webhook
           WebhookService.queueWebhook('user_synced_from_device', { deviceSn: sn, user });
 
-          // Broadcast to ALL OTHER connected devices
-          const allDevices = await prisma.device.findMany({ where: { isOnline: true } });
-          for (const device of allDevices) {
-            if (device.serialNumber !== sn) {
-              const cmdData = `DATA UPDATE USERINFO PIN=${uid} Name=${name} Pri=${user.privilege}`;
-              await prisma.commandQueue.create({
-                data: {
-                  deviceSn: device.serialNumber,
-                  commandType: 'UPDATE_USERINFO',
-                  commandData: cmdData,
-                  status: 'pending',
-                }
-              });
-            }
+          // Broadcast to ALL OTHER connected devices in the same Area.
+          // If user has no area (null), broadcast to ALL devices.
+          const deviceFilter: any = { serialNumber: { not: sn } };
+          if (user.areaId !== null) {
+            deviceFilter.areaId = user.areaId;
+          }
+          const targetDevices = await prisma.device.findMany({ where: deviceFilter });
+          
+          for (const device of targetDevices) {
+            // Track sync state
+            await prisma.userDevice.upsert({
+              where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
+              create: { userId: user.id, deviceId: device.id, syncedAt: null },
+              update: { syncedAt: null }
+            });
+
+            const cmdData = buildUserInfoCommand(uid, name || user.name, user.privilege, card || user.cardNumber);
+            await prisma.commandQueue.create({
+              data: {
+                deviceSn: device.serialNumber,
+                commandType: 'UPDATE_USERINFO',
+                commandData: cmdData,
+                status: 'pending',
+              }
+            });
           }
         } catch (e) {
           logger.error(`[Push] Failed to sync user`, { error: (e as Error).message });
@@ -205,33 +371,57 @@ router.post('/cdata', async (req: Request, res: Response) => {
     }
   }
 
-  // Parse FP (Fingerprint) or FACE (Face) or BIODATA
-  if ((table === 'FP' || table === 'FACE' || table === 'BIODATA') && typeof rawBody === 'string') {
+  // Parse FP (Fingerprint) or FACE (Face) or BIODATA or TEMPLATE
+  if ((table === 'FP' || table === 'FACE' || table === 'BIODATA' || table === 'TEMPLATE') && typeof rawBody === 'string') {
     const lines = rawBody.split('\n').filter(l => l.trim() !== '');
     for (const line of lines) {
       // Key-Value format: PIN=1001 FID=0 Size=250 Valid=1 TMP=...
+      // Or BIODATA format: BIODATA Pin=1001 No=0 Valid=1 Type=1 Tmp=...
       const parts = line.split('\t');
       let uidStr = '';
       let fidStr = '0';
       let sizeStr = '0';
       let validStr = '1';
       let tmp = '';
-      
+      let typeCode = table === 'FACE' ? 15 : 1; // 1 = Finger, 15 = Face
+
       parts.forEach(p => {
-        if (p.startsWith('PIN=')) uidStr = p.replace('PIN=', '');
-        if (p.startsWith('FID=')) fidStr = p.replace('FID=', '');
-        if (p.startsWith('Size=')) sizeStr = p.replace('Size=', '');
-        if (p.startsWith('Valid=')) validStr = p.replace('Valid=', '');
-        if (p.startsWith('TMP=')) tmp = p.replace('TMP=', '');
+        const part = p.trim();
+        // Handle normal FP/FACE
+        if (part.startsWith('PIN=')) uidStr = part.replace('PIN=', '');
+        if (part.startsWith('FID=')) fidStr = part.replace('FID=', '');
+        if (part.startsWith('Size=')) sizeStr = part.replace('Size=', '');
+        if (part.startsWith('Valid=')) validStr = part.replace('Valid=', '');
+        if (part.startsWith('TMP=')) tmp = part.replace('TMP=', '');
+
+        // Handle BIODATA
+        if (part.toUpperCase().startsWith('BIODATA PIN=')) uidStr = part.substring(12);
+        if (part.startsWith('Pin=')) uidStr = part.replace('Pin=', '');
+        if (part.startsWith('No=')) fidStr = part.replace('No=', '');
+        if (part.startsWith('Tmp=')) tmp = part.replace('Tmp=', '');
+        if (part.startsWith('Type=')) {
+          const t = parseInt(part.replace('Type=', ''), 10);
+          // Type=1 is Finger, Type=2/8/9 are usually Face. 
+          typeCode = t === 1 ? 1 : 15;
+        }
       });
 
       const uid = parseInt(uidStr, 10);
       if (!isNaN(uid) && tmp) {
         try {
-          const typeCode = table === 'FACE' ? 15 : 1; // 1 = Finger, 15 = Face
+          // ENSURE USER EXISTS (Prevent Foreign Key Error if fingerprint arrives before user profile)
+          await prisma.user.upsert({
+            where: { uid: uid },
+            create: {
+              uid: uid,
+              name: `User ${uid}`,
+              status: 'active',
+              areaId: sourceDevice?.areaId || null,
+            },
+            update: {} // Do nothing if user already exists
+          });
 
-          // @ts-ignore - Prisma client not fully regenerated due to file lock, but DB schema is updated
-          await prisma.biometricTemplate.upsert({
+          const bioTemplate = await prisma.biometricTemplate.upsert({
             where: {
               uid_type_fingerId: {
                 uid: uid,
@@ -246,24 +436,48 @@ router.post('/cdata', async (req: Request, res: Response) => {
               size: parseInt(sizeStr, 10) || 0,
               valid: parseInt(validStr, 10) || 1,
               template: tmp,
+              rawData: line.trim(),
               deviceSn: sn,
             },
             update: {
               size: parseInt(sizeStr, 10) || 0,
               valid: parseInt(validStr, 10) || 1,
               template: tmp,
+              rawData: line.trim(),
               deviceSn: sn,
             }
           });
           logger.info(`[Push] Saved biometric (${table}) for UID: ${uid}`);
 
-          // Broadcast to ALL OTHER connected devices
-          const allDevices = await prisma.device.findMany({ where: { isOnline: true } });
-          for (const device of allDevices) {
-            if (device.serialNumber !== sn) {
-              const cmdPrefix = table === 'FACE' ? 'DATA UPDATE FACE' : 'DATA UPDATE FINGER';
-              const cmdData = `${cmdPrefix} PIN=${uidStr} FID=${fidStr} Size=${sizeStr} Valid=${validStr} TMP=${tmp}`;
-              
+          // Find the user to get their Area
+          const user = await prisma.user.findUnique({ where: { uid: uid } });
+          if (user) {
+            // Broadcast to ALL OTHER devices in the same Area.
+            // If user has no area (null), broadcast to ALL devices.
+            const deviceFilter: any = { serialNumber: { not: sn } };
+            if (user.areaId !== null) {
+              deviceFilter.areaId = user.areaId;
+            }
+            const targetDevices = await prisma.device.findMany({ where: deviceFilter });
+            
+            for (const device of targetDevices) {
+              // Track sync state
+              await prisma.userDevice.upsert({
+                where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
+                create: { userId: user.id, deviceId: device.id, syncedAt: null },
+                update: { syncedAt: null }
+              });
+
+              // Use commandBuilder for correct ADMS formatting
+              const cmdData = buildBiometricCommand({
+                uid: uid,
+                type: typeCode,
+                fingerId: parseInt(fidStr, 10),
+                size: parseInt(sizeStr, 10) || 0,
+                valid: parseInt(validStr, 10) || 1,
+                template: tmp,
+                rawData: line.trim(),
+              });
               await prisma.commandQueue.create({
                 data: {
                   deviceSn: device.serialNumber,
@@ -299,9 +513,9 @@ router.post('/cdata', async (req: Request, res: Response) => {
 router.get('/getrequest', async (req: Request, res: Response) => {
   const sn = req.query.SN as string;
   
-  logger.info(`[Push] Device Polling (getrequest) from SN: ${sn || 'UNKNOWN'}`);
-
-  logger.info(`[Push] Polling for commands from ${sn}`);
+  // Noisy getrequest logs are disabled
+  // logger.info(`[Push] Device Polling (getrequest) from SN: ${sn || 'UNKNOWN'}`);
+  // logger.info(`[Push] Polling for commands from ${sn}`);
   // saveDeviceData('getrequest', 'GET', req.query, null, sn);
 
   if (sn) {
@@ -348,8 +562,8 @@ router.get('/getrequest', async (req: Request, res: Response) => {
 router.post('/devicecmd', async (req: Request, res: Response) => {
   const sn = req.query.SN as string;
   const rawBody = req.body; // ID=1&Return=0&CMD=DATA...
-
   logger.info(`[Push] Command Result from ${sn}`);
+  logger.info(`[Push Raw Data CMD] \n${typeof rawBody === 'object' ? JSON.stringify(rawBody, null, 2) : rawBody}`);
   saveDeviceData('devicecmd', 'POST', req.query, rawBody, sn);
 
   if (sn) {
@@ -386,10 +600,23 @@ router.post('/devicecmd', async (req: Request, res: Response) => {
               // Extract PIN
               const pinMatch = cmd.commandData.match(/PIN=(\d+)/);
               if (pinMatch && pinMatch[1]) {
+                const uid = parseInt(pinMatch[1], 10);
                 await prisma.user.updateMany({
-                  where: { uid: parseInt(pinMatch[1], 10) },
+                  where: { uid: uid },
                   data: { status: 'active' }
                 });
+
+                // Update UserDevice syncedAt
+                const user = await prisma.user.findUnique({ where: { uid: uid } });
+                const device = await prisma.device.findUnique({ where: { serialNumber: sn } });
+                if (user && device) {
+                  await prisma.userDevice.upsert({
+                    where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
+                    create: { userId: user.id, deviceId: device.id, syncedAt: new Date() },
+                    update: { syncedAt: new Date() }
+                  });
+                  logger.info(`[Sync] User ${uid} successfully synced to device ${sn}`);
+                }
               }
             } else if (cmd.commandData.startsWith('DATA DELETE USERINFO')) {
               const pinMatch = cmd.commandData.match(/PIN=(\d+)/);
@@ -427,10 +654,23 @@ router.post('/devicecmd', async (req: Request, res: Response) => {
             // Extract PIN
             const pinMatch = cmd.commandData.match(/PIN=(\d+)/);
             if (pinMatch && pinMatch[1]) {
+              const uid = parseInt(pinMatch[1], 10);
               await prisma.user.updateMany({
-                where: { uid: parseInt(pinMatch[1], 10) },
+                where: { uid: uid },
                 data: { status: 'active' }
               });
+
+              // Update UserDevice syncedAt
+              const user = await prisma.user.findUnique({ where: { uid: uid } });
+              const device = await prisma.device.findUnique({ where: { serialNumber: sn } });
+              if (user && device) {
+                await prisma.userDevice.upsert({
+                  where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
+                  create: { userId: user.id, deviceId: device.id, syncedAt: new Date() },
+                  update: { syncedAt: new Date() }
+                });
+                logger.info(`[Sync] User ${uid} successfully synced to device ${sn}`);
+              }
             }
           } else if (cmd.commandData.startsWith('DATA DELETE USERINFO')) {
             const pinMatch = cmd.commandData.match(/PIN=(\d+)/);

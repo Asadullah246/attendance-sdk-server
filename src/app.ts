@@ -12,8 +12,15 @@ import deviceRoutes from './api/routes/devices';
 import attendanceRoutes from './api/routes/attendance';
 import userRoutes from './api/routes/users';
 import authRoutes from './api/routes/auth';
+import configRoutes from './api/routes/configs';
+import shiftRoutes from './api/routes/shifts';
+import scheduleRoutes from './api/routes/schedules';
+import reportRoutes from './api/routes/reports';
+import holidayRoutes from './api/routes/holidays';
 import pushRouter from './push/iclock';
 import { requireApiKey } from './api/middleware/auth';
+import swaggerUi from 'swagger-ui-express';
+import { generateSwaggerSpec } from './config/swagger';
 
 const app = express();
 
@@ -36,6 +43,7 @@ app.use(express.text({ type: ['text/plain', 'application/unknown', '*/*'] }));
 // HTTP request logging via Morgan → Winston
 app.use(
   morgan('short', {
+    skip: (req) => req.url.includes('/iclock/getrequest'),
     stream: {
       write: (message: string) => logger.http(message.trim()),
     },
@@ -58,7 +66,16 @@ app.get('/health', (_req: Request, res: Response) => {
 app.use('/dashboard', express.static(path.join(process.cwd(), 'public')));
 
 // ─── API Routes ──────────────────────────────────────────────────────
-// Unprotected APIs (Authentication)
+
+// Swagger Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(generateSwaggerSpec(), {
+  swaggerOptions: {
+    persistAuthorization: true,
+  },
+  customSiteTitle: 'ZKTeco SDK API Docs',
+}));
+
+// Basic Auth generation route (Phase 3)
 app.use('/api/v1/auth', authRoutes);
 
 // Protected APIs for the Main Application
@@ -68,6 +85,11 @@ app.use('/api/v1', requireApiKey); // Apply authentication to all subsequent /ap
 app.use('/api/v1/devices', deviceRoutes);
 app.use('/api/v1/attendance', attendanceRoutes);
 app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/configs', configRoutes);
+app.use('/api/v1/shifts', shiftRoutes);
+app.use('/api/v1/schedules', scheduleRoutes);
+app.use('/api/v1/reports', reportRoutes);
+app.use('/api/v1/holidays', holidayRoutes);
 
 // Command routes (Phase 3 — Push Protocol commands)
 app.use('/api/v1/commands', commandRoutes);

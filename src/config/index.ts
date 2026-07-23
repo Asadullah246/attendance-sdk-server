@@ -18,7 +18,11 @@ export interface AppConfig {
   defaultDevicePort: number;
   connectionTimeout: number;
   webhookSecret: string;
-  mainAppWebhookUrl: string;
+  timeCardWebhookUrl: string;
+  rawAttendanceWebhookUrl: string;
+  commandWebhookUrl: string;
+  timezone: string;
+  deviceTimezoneOffset: string;
 }
 
 const config: AppConfig = {
@@ -46,7 +50,13 @@ const config: AppConfig = {
 
   // Webhooks
   webhookSecret: process.env.WEBHOOK_SECRET || '',
-  mainAppWebhookUrl: process.env.MAIN_APP_WEBHOOK_URL || '',
+  timeCardWebhookUrl: process.env.TIME_CARD_WEBHOOK_URL || '',
+  rawAttendanceWebhookUrl: process.env.RAW_ATTENDANCE_WEBHOOK_URL || '',
+  commandWebhookUrl: process.env.COMMAND_WEBHOOK_URL || '',
+  
+  // Settings
+  timezone: process.env.TIMEZONE || 'Asia/Dhaka',
+  deviceTimezoneOffset: process.env.DEVICE_TIMEZONE_OFFSET || '+06:00',
 };
 
 export default config;
