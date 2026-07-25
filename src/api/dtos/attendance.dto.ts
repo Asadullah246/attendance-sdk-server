@@ -17,10 +17,10 @@ export const GetAttendanceQuerySchema = z.object({
 
 export const CreateAttendanceBodySchema = z.object({
   deviceSn: z.string().optional().openapi({ description: 'Device Serial Number (optional for manual punch)', example: 'MANUAL' }),
-  uid: z.number().int().openapi({ description: 'Employee Device UID', example: 1 }),
-  punchTime: z.string().openapi({ description: 'Punch Time (ISO string)', example: '2023-10-25T08:00:00Z' }),
-  status: z.number().int().optional().openapi({ description: 'Punch State (0=Check-in, 1=Check-out)', example: 0 }),
-  verifyType: z.number().int().optional().openapi({ description: 'Verification Type (1=Finger, 15=Face)', example: 1 }),
+  uid: z.union([z.number().int(), z.string().transform((val) => parseInt(val, 10))]).openapi({ description: 'Employee Device UID (number or string)', example: 1001 }),
+  punchTime: z.string().openapi({ description: 'Punch Time (ISO string)', example: '2026-07-25T08:00:00Z' }),
+  status: z.union([z.number().int(), z.string().transform((val) => parseInt(val, 10))]).optional().openapi({ description: 'Punch State (0=Check-in, 1=Check-out)', example: 0 }),
+  verifyType: z.union([z.number().int(), z.string().transform((val) => parseInt(val, 10))]).optional().openapi({ description: 'Verification Type (1=Finger, 15=Face)', example: 1 }),
 });
 
 export const AttendanceLogSchema = z.object({

@@ -24,8 +24,14 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 router.post('/', 
   validateRequest(z.object({ body: CreateUserBodySchema })),
   asyncHandler(async (req: Request, res: Response) => {
-    const { uid, name, privilege, deviceSn, defaultTimetableId } = req.body;
+    const { uid, name, privilege, deviceSn, defaultTimetableId, overwrite } = req.body;
     const numericUid = parseInt(uid, 10);
+
+    // 0. Check if user already exists
+    const existingUser = await prisma.user.findUnique({ where: { uid: numericUid } });
+    if (existingUser && !overwrite) {
+      return res.status(409).json(errorResponse('User already exists', 409));
+    }
 
     // 1. Save to database (use uid, NOT id — id is the auto-increment PK)
     const user = await prisma.user.upsert({

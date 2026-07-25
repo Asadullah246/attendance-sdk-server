@@ -9,7 +9,8 @@ export const CreateUserBodySchema = z.object({
   name: z.string().openapi({ description: 'The user name', example: 'John Doe' }),
   privilege: z.string().optional().openapi({ description: 'Privilege level (0=User, 14=Admin)', example: '0' }),
   deviceSn: z.string().optional().openapi({ description: 'Specific device SN. If omitted, pushes to all devices', example: 'SN12345' }),
-  defaultTimetableId: z.number().int().optional().openapi({ description: 'Default shift for this user', example: 1 })
+  defaultTimetableId: z.number().int().optional().openapi({ description: 'Default shift for this user', example: 1 }),
+  overwrite: z.boolean().optional().openapi({ description: 'Force overwrite if user already exists', example: false })
 });
 
 export const DeleteUserParamSchema = z.object({

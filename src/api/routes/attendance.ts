@@ -88,15 +88,22 @@ router.post('/',
   asyncHandler(async (req: Request, res: Response) => {
     const { deviceSn, uid, punchTime, status, verifyType } = req.body;
     
+    const numericUid = typeof uid === 'number' ? uid : parseInt(String(uid), 10);
+    const numericStatus = status !== undefined && status !== null ? Number(status) : 0;
+    const numericVerifyType = verifyType !== undefined && verifyType !== null ? Number(verifyType) : 1;
+
     const punchTimeDate = new Date(punchTime);
+    if (isNaN(punchTimeDate.getTime())) {
+      return res.status(400).json({ success: false, message: 'Invalid punchTime date format' });
+    }
 
     const log = await prisma.attendanceLog.create({
       data: {
         deviceSn: deviceSn || 'MANUAL',
-        uid: uid,
+        uid: numericUid,
         punchTime: punchTimeDate,
-        status: status ?? 0,
-        verifyType: verifyType ?? 1,
+        status: numericStatus,
+        verifyType: numericVerifyType,
         source: 'manual',
         rawData: 'Manual Entry',
       }
