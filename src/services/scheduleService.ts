@@ -170,10 +170,22 @@ export class ScheduleService {
       if (filters.dateTo) where.scheduleDate.lte = new Date(filters.dateTo);
     }
 
-    return prisma.employeeSchedule.findMany({
+    const schedules = await prisma.employeeSchedule.findMany({
       where,
       include: { timetable: true },
       orderBy: { scheduleDate: 'asc' }
     });
+
+    const uids = Array.from(new Set(schedules.map((s) => s.uid)));
+    const users = await prisma.user.findMany({
+      where: { uid: { in: uids } },
+      select: { uid: true, name: true }
+    });
+    const userMap = new Map(users.map((u) => [u.uid, u.name]));
+
+    return schedules.map((s) => ({
+      ...s,
+      userName: userMap.get(s.uid) || null
+    }));
   }
 }

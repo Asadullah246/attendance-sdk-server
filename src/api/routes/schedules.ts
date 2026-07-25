@@ -17,6 +17,7 @@ function mapScheduleResponse(schedule: any) {
   return {
     id: schedule.id,
     uid: schedule.uid,
+    userName: schedule.userName || undefined,
     timetableId: schedule.timetableId,
     scheduleDate: schedule.scheduleDate,
     createdAt: schedule.createdAt,
