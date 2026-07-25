@@ -66,32 +66,54 @@ router.get('/summary',
   asyncHandler(async (req: Request, res: Response) => {
     const { uid, dateFrom, dateTo } = req.query;
 
-    const uidNum = parseInt(uid as string, 10);
-    const where: any = { uid: uidNum };
+    const where: any = {};
+
+    if (uid) {
+      where.uid = typeof uid === 'number' ? uid : parseInt(uid as string, 10);
+    }
 
     if (dateFrom || dateTo) {
       where.scheduleDate = {};
-      if (dateFrom) where.scheduleDate.gte = new Date(dateFrom as string);
-      if (dateTo) where.scheduleDate.lte = new Date(dateTo as string);
+      if (dateFrom) where.scheduleDate.gte = new Date(`${dateFrom}T00:00:00.000Z`);
+      if (dateTo) where.scheduleDate.lte = new Date(`${dateTo}T23:59:59.999Z`);
     }
 
-    const reports = await prisma.dailyAttendanceReport.findMany({ where });
+    const reports = await prisma.dailyAttendanceReport.findMany({ 
+      where,
+      orderBy: { scheduleDate: 'asc' }
+    });
 
-    const summary = {
-      uid: uidNum,
-      totalDays: reports.length,
-      totalPresentDays: 0,
-      totalAbsentDays: 0,
-      totalLateDays: 0,
-      totalEarlyLeaveDays: 0,
-      totalMissingPunchDays: 0,
-      totalWorkingMinutes: 0,
-      totalLateMinutes: 0,
-      totalOvertimeMinutes: 0,
-      totalManualOvertimeMinutes: 0
-    };
+    const uids = Array.from(new Set(reports.map((r) => r.uid)));
+    const users = await prisma.user.findMany({
+      where: { uid: { in: uids } },
+      select: { uid: true, name: true }
+    });
+    const userMap = new Map(users.map((u) => [u.uid, u.name]));
+
+    const summaryMap = new Map<number, any>();
 
     for (const report of reports) {
+      let summary = summaryMap.get(report.uid);
+      if (!summary) {
+        summary = {
+          uid: report.uid,
+          employeeId: String(report.uid),
+          userName: userMap.get(report.uid) || `User ${report.uid}`,
+          totalDays: 0,
+          totalPresentDays: 0,
+          totalAbsentDays: 0,
+          totalLateDays: 0,
+          totalEarlyLeaveDays: 0,
+          totalMissingPunchDays: 0,
+          totalWorkingMinutes: 0,
+          totalLateMinutes: 0,
+          totalOvertimeMinutes: 0,
+          totalManualOvertimeMinutes: 0
+        };
+        summaryMap.set(report.uid, summary);
+      }
+
+      summary.totalDays++;
       if (report.status === 'PRESENT') summary.totalPresentDays++;
       else if (report.status === 'ABSENT') summary.totalAbsentDays++;
       else if (report.status === 'LATE') summary.totalLateDays++;
@@ -104,7 +126,9 @@ router.get('/summary',
       summary.totalManualOvertimeMinutes += report.manualOvertimeMinutes;
     }
 
-    res.json(successResponse(summary, 'Summary generated successfully'));
+    const summaryList = Array.from(summaryMap.values());
+
+    res.json(successResponse(uid ? (summaryList[0] || null) : summaryList, 'Summary generated successfully'));
   })
 );
 

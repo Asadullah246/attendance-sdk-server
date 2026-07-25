@@ -13,9 +13,9 @@ export const GetReportsQuerySchema = z.object({
 });
 
 export const GenerateSummaryQuerySchema = z.object({
-  dateFrom: z.string().openapi({ description: 'Start date', example: '2023-10-01' }),
-  dateTo: z.string().openapi({ description: 'End date', example: '2023-10-31' }),
-  uid: z.number().int().openapi({ description: 'Employee UID', example: 1001 })
+  dateFrom: z.string().optional().openapi({ description: 'Start date', example: '2026-07-01' }),
+  dateTo: z.string().optional().openapi({ description: 'End date', example: '2026-07-31' }),
+  uid: z.union([z.number().int(), z.string().transform((v) => parseInt(v, 10))]).optional().openapi({ description: 'Employee UID', example: 1001 })
 });
 
 export const CalculateReportsBodySchema = z.object({
