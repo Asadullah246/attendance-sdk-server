@@ -209,7 +209,7 @@ export class AttendanceCalculationService {
   static async calculateLiveForEmployee(uid: number, dateStr: string) {
     const targetDate = new Date(`${dateStr}T00:00:00.000Z`);
 
-    const schedule = await prisma.employeeSchedule.findUnique({
+    let schedule = await prisma.employeeSchedule.findUnique({
       where: {
         uid_scheduleDate: {
           uid,
@@ -218,6 +218,24 @@ export class AttendanceCalculationService {
       },
       include: { timetable: true }
     });
+
+    // if (!schedule) {
+    //   // Resolve default shift timetable for user or fallback to active shift
+    //   const user = await prisma.user.findUnique({ where: { uid } });
+    //   let timetableId = user?.defaultTimetableId;
+    //   if (!timetableId) {
+    //     const defaultShift = await prisma.shiftTimetable.findFirst({ where: { isActive: true } });
+    //     timetableId = defaultShift?.id;
+    //   }
+    //   if (timetableId) {
+    //     schedule = await prisma.employeeSchedule.upsert({
+    //       where: { uid_scheduleDate: { uid, scheduleDate: targetDate } },
+    //       create: { uid, timetableId, scheduleDate: targetDate },
+    //       update: {},
+    //       include: { timetable: true }
+    //     });
+    //   }
+    // }
 
     if (!schedule) return null;
 

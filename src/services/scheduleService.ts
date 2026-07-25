@@ -10,7 +10,11 @@ export interface AssignScheduleInput {
 }
 
 export interface BulkAssignInput {
-  schedules: {
+  uids?: (number | string)[];
+  timetableId?: number | string;
+  dateFrom?: string;
+  dateTo?: string;
+  schedules?: {
     uid: number;
     timetableId: number;
     scheduleDate: string; // ISO format date 'YYYY-MM-DD'
@@ -46,34 +50,93 @@ export class ScheduleService {
   }
 
   /**
-   * Bulk assign schedules to multiple employees over a date range
+   * Bulk assign schedules to multiple employees over a date range or explicit schedule list
    */
   static async bulkAssignSchedule(data: BulkAssignInput) {
     let createdCount = 0;
 
-    for (const item of data.schedules) {
-      try {
-        const targetDate = new Date(item.scheduleDate);
-        
-        await prisma.employeeSchedule.upsert({
-          where: {
-            uid_scheduleDate: {
+    // Case 1: Date Range bulk assignment ({ uids, timetableId, dateFrom, dateTo })
+    if (data.uids && Array.isArray(data.uids) && data.timetableId && data.dateFrom && data.dateTo) {
+      const startDate = new Date(`${data.dateFrom}T00:00:00.000Z`);
+      const endDate = new Date(`${data.dateTo}T00:00:00.000Z`);
+
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        throw new Error('Invalid dateFrom or dateTo format');
+      }
+
+      const timetableIdNum = typeof data.timetableId === 'number' ? data.timetableId : parseInt(String(data.timetableId), 10);
+
+      const recordsToUpsert: { uid: number; timetableId: number; scheduleDate: Date }[] = [];
+
+      let curr = new Date(startDate);
+      while (curr <= endDate) {
+        const scheduleDate = new Date(curr);
+        for (const rawUid of data.uids) {
+          const uid = typeof rawUid === 'number' ? rawUid : parseInt(String(rawUid), 10);
+          if (!isNaN(uid)) {
+            recordsToUpsert.push({
+              uid,
+              timetableId: timetableIdNum,
+              scheduleDate,
+            });
+          }
+        }
+        curr.setDate(curr.getDate() + 1);
+      }
+
+      for (const rec of recordsToUpsert) {
+        try {
+          await prisma.employeeSchedule.upsert({
+            where: {
+              uid_scheduleDate: {
+                uid: rec.uid,
+                scheduleDate: rec.scheduleDate,
+              },
+            },
+            update: {
+              timetableId: rec.timetableId,
+            },
+            create: {
+              uid: rec.uid,
+              timetableId: rec.timetableId,
+              scheduleDate: rec.scheduleDate,
+            },
+          });
+          createdCount++;
+        } catch (error) {
+          logger.warn(`[ScheduleService] Failed to assign bulk schedule for ${rec.uid} on ${rec.scheduleDate}`);
+        }
+      }
+
+      return { count: createdCount };
+    }
+
+    // Case 2: Explicit schedules array ({ schedules: [...] })
+    if (data.schedules && Array.isArray(data.schedules)) {
+      for (const item of data.schedules) {
+        try {
+          const targetDate = new Date(`${item.scheduleDate}T00:00:00.000Z`);
+          
+          await prisma.employeeSchedule.upsert({
+            where: {
+              uid_scheduleDate: {
+                uid: item.uid,
+                scheduleDate: targetDate
+              }
+            },
+            update: {
+              timetableId: item.timetableId
+            },
+            create: {
               uid: item.uid,
+              timetableId: item.timetableId,
               scheduleDate: targetDate
             }
-          },
-          update: {
-            timetableId: item.timetableId
-          },
-          create: {
-            uid: item.uid,
-            timetableId: item.timetableId,
-            scheduleDate: targetDate
-          }
-        });
-        createdCount++;
-      } catch (error) {
-        logger.warn(`[ScheduleService] Failed to assign bulk schedule for ${item.uid} on ${item.scheduleDate}`);
+          });
+          createdCount++;
+        } catch (error) {
+          logger.warn(`[ScheduleService] Failed to assign bulk schedule for ${item.uid} on ${item.scheduleDate}`);
+        }
       }
     }
 

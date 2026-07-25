@@ -18,20 +18,27 @@ export const AssignScheduleBodySchema = z.object({
 });
 
 export const BulkAssignScheduleItemSchema = z.object({
-  uid: z.number().int().openapi({ example: 105 }),
-  timetableId: z.number().int().openapi({ example: 1 }),
+  uid: z.union([z.number().int(), z.string().transform((val) => parseInt(val, 10))]).openapi({ example: 105 }),
+  timetableId: z.union([z.number().int(), z.string().transform((val) => parseInt(val, 10))]).openapi({ example: 1 }),
   scheduleDate: z.string().openapi({ description: 'Date (YYYY-MM-DD)', example: '2026-08-01' })
 });
 
-export const BulkAssignScheduleBodySchema = z.object({
-  schedules: z.array(BulkAssignScheduleItemSchema).openapi({ 
-    description: 'Array of specific shift assignments. This allows for complex rotating shifts.',
-    example: [
-      { uid: 105, timetableId: 1, scheduleDate: '2026-08-01' },
-      { uid: 105, timetableId: 2, scheduleDate: '2026-08-02' }
-    ]
+export const BulkAssignScheduleBodySchema = z.union([
+  z.object({
+    uids: z.array(z.union([z.number().int(), z.string().transform((val) => parseInt(val, 10))])).openapi({ example: [202601002, 202601001] }),
+    timetableId: z.union([z.number().int(), z.string().transform((val) => parseInt(val, 10))]).openapi({ example: 1 }),
+    dateFrom: z.string().openapi({ description: 'Start date (YYYY-MM-DD)', example: '2026-07-01' }),
+    dateTo: z.string().openapi({ description: 'End date (YYYY-MM-DD)', example: '2026-12-25' })
+  }),
+  z.object({
+    schedules: z.array(BulkAssignScheduleItemSchema).openapi({ 
+      description: 'Array of specific shift assignments.',
+      example: [
+        { uid: 105, timetableId: 1, scheduleDate: '2026-08-01' }
+      ]
+    })
   })
-});
+]);
 
 export const ScheduleIdParamSchema = z.object({
   id: z.string().openapi({ description: 'Schedule ID', example: '1' })

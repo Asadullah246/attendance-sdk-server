@@ -109,20 +109,26 @@ router.post('/',
       }
     });
 
-    // Trigger webhook so the main app syncs the manual punch
-    WebhookService.queueWebhook('attendance', log);
+    // 1. Queue webhooks (both raw_attendance and attendance for compatibility)
+    await WebhookService.queueWebhook('raw_attendance', log);
+    await WebhookService.queueWebhook('attendance', log);
 
-    // --- LIVE CALCULATION ---
+    // 2. --- LIVE CALCULATION ---
     const todayStr = punchTimeDate.toISOString().split('T')[0];
     const yesterdayDate = new Date(punchTimeDate);
     yesterdayDate.setDate(yesterdayDate.getDate() - 1);
     const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
 
-    AttendanceCalculationService.calculateLiveForEmployee(uid, todayStr).catch(e => 
-      logger.error(`[LiveCalc] Error for ${uid} on ${todayStr}`, { error: e.message })
-    );
-    AttendanceCalculationService.calculateLiveForEmployee(uid, yesterdayStr).catch(e => 
-      logger.error(`[LiveCalc] Error for ${uid} on ${yesterdayStr}`, { error: e.message })
+    try {
+      await AttendanceCalculationService.calculateLiveForEmployee(numericUid, todayStr);
+      await AttendanceCalculationService.calculateLiveForEmployee(numericUid, yesterdayStr);
+    } catch (e) {
+      logger.error(`[LiveCalc] Error for ${numericUid} on ${todayStr}`, { error: (e as Error).message });
+    }
+
+    // 3. Immediately attempt background webhook delivery to Main App
+    WebhookService.processWebhooks().catch((e) =>
+      logger.error(`[Webhook] Immediate delivery error`, { error: (e as Error).message })
     );
 
     res.json(successResponse(log, 'Manual attendance log created successfully'));
