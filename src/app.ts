@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
+import * as Sentry from '@sentry/node';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -62,6 +63,11 @@ app.get('/health', (_req: Request, res: Response) => {
   );
 });
 
+// ─── GlitchTip Test Route ─────────────────────────────────────────────
+app.get('/api/test-error', (_req: Request, res: Response) => {
+  throw new Error('This is a test error to verify GlitchTip integration!');
+});
+
 // ─── Static Dashboard ──────────────────────────────────────────────────
 app.use('/dashboard', express.static(path.join(process.cwd(), 'public')));
 
@@ -108,6 +114,9 @@ app.use((req: Request, res: Response) => {
 });
 
 // ─── Global Error Handler ────────────────────────────────────────────
+// The error handler must be before any other error middleware and after all controllers
+Sentry.setupExpressErrorHandler(app);
+
 app.use((err: Error & { status?: number }, req: Request, res: Response, _next: NextFunction) => {
   logger.error('Unhandled error', {
     error: err.message,
