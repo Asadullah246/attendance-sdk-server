@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import path from 'path';
 import logger from './utils/logger';
 import { successResponse, formatUptime } from './utils/helpers';
+import config from './config';
 
 // Import routers
 import commandRoutes from './api/routes/commands';
@@ -50,6 +51,31 @@ app.use(
     },
   })
 );
+
+// ─── Sentry Universal Error Interceptor ──────────────────────────────
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const originalJson = res.json;
+  res.json = function (body) {
+    if (res.statusCode >= 400 && config.showAllErrors) {
+      Sentry.withScope((scope) => {
+        scope.setExtra('req.method', req.method);
+        scope.setExtra('req.url', req.originalUrl);
+        scope.setExtra('req.body', req.body);
+        scope.setExtra('res.status', res.statusCode);
+        scope.setExtra('res.body', body);
+        
+        let message = `HTTP Error ${res.statusCode} at ${req.originalUrl}`;
+        if (body && typeof body === 'object' && 'message' in body) {
+          message += `: ${(body as any).message}`;
+        }
+        
+        Sentry.captureMessage(message, 'warning');
+      });
+    }
+    return originalJson.call(this, body);
+  };
+  next();
+});
 
 // ─── Health Check ────────────────────────────────────────────────────
 app.get('/health', (_req: Request, res: Response) => {

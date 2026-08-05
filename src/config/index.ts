@@ -24,6 +24,7 @@ export interface AppConfig {
   timezone: string;
   deviceTimezoneOffset: string;
   sentryDsn: string;
+  showAllErrors: boolean;
 }
 
 const config: AppConfig = {
@@ -61,6 +62,7 @@ const config: AppConfig = {
   
   // Monitoring / GlitchTip
   sentryDsn: process.env.SENTRY_DSN || process.env.GLITCHTIP_DSN || '',
+  showAllErrors: process.env.SHOW_ALL_ERRORS === 'true',
 };
 
 export default config;
