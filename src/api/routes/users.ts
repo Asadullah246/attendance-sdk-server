@@ -24,7 +24,7 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 router.post('/', 
   validateRequest(z.object({ body: CreateUserBodySchema })),
   asyncHandler(async (req: Request, res: Response) => {
-    const { uid, name, privilege, deviceSn, defaultTimetableId, overwrite } = req.body;
+    const { uid, name, privilege, deviceSn, defaultTimetableId, overwrite, cardNumber } = req.body;
     const numericUid = parseInt(uid, 10);
 
     // 0. Check if user already exists
@@ -41,13 +41,15 @@ router.post('/',
         name,
         privilege: privilege ? parseInt(privilege, 10) : 0,
         status: 'pending_add',
-        defaultTimetableId: defaultTimetableId ?? null
+        defaultTimetableId: defaultTimetableId ?? null,
+        cardNumber: cardNumber ?? null
       },
       update: {
         name,
         privilege: privilege ? parseInt(privilege, 10) : 0,
         status: 'pending_add',
-        defaultTimetableId: defaultTimetableId ?? null
+        defaultTimetableId: defaultTimetableId ?? null,
+        cardNumber: cardNumber ?? null
       }
     });
 
