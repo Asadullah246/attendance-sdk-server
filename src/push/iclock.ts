@@ -281,6 +281,8 @@ router.post('/cdata', async (req: Request, res: Response) => {
   }
 
   // Parse USERINFO (User Sync from device)
+  // POLICY: SDK DB is source of truth for users. We do NOT create new users from device pushes.
+  // We only update device-priority fields (card, password) for users that already exist in the DB.
   if ((table === 'USER' || table === 'USERINFO' || table === 'OPERLOG') && typeof rawBody === 'string') {
     const lines = rawBody.split('\n').filter(l => l.trim() !== '');
     for (const line of lines) {
@@ -294,6 +296,7 @@ router.post('/cdata', async (req: Request, res: Response) => {
       let name = '';
       let privilege = 0;
       let card = '';
+      let password = '';
 
       if (line.includes('PIN=')) {
         // Key-Value format
@@ -303,6 +306,7 @@ router.post('/cdata', async (req: Request, res: Response) => {
           if (p.startsWith('Name=')) name = p.replace('Name=', '');
           if (p.startsWith('Pri=')) privilege = parseInt(p.replace('Pri=', ''), 10);
           if (p.startsWith('Card=')) card = p.replace('Card=', '');
+          if (p.startsWith('Passwd=')) password = p.replace('Passwd=', '');
         });
       } else if (parts.length >= 2) {
         // TSV format
@@ -310,61 +314,45 @@ router.post('/cdata', async (req: Request, res: Response) => {
         name = parts[1];
         privilege = parts.length > 2 ? parseInt(parts[2], 10) : 0;
         card = parts.length > 3 ? parts[3] : '';
+        password = parts.length > 4 ? parts[4] : '';
       }
 
       const uid = parseInt(uidStr, 10);
       if (!isNaN(uid)) {
         try {
-          const user = await prisma.user.upsert({
-            where: { uid: uid },
-            create: {
-              uid: uid,
-              name: name || `User ${uid}`,
-              privilege: isNaN(privilege) ? 0 : privilege,
-              cardNumber: card || null,
-              status: 'active',
-              areaId: sourceDevice?.areaId || null,
-            },
-            update: {
-              name: name || `User ${uid}`,
-              privilege: isNaN(privilege) ? 0 : privilege,
-              cardNumber: card || null,
-              status: 'active',
-            }
-          });
-          logger.info(`[Push] Synced user UID: ${uid}, Name: ${name}`);
-          
+          // Check if user exists in SDK DB — do NOT create if not found
+          const existingUser = await prisma.user.findUnique({ where: { uid: uid } });
+
+          if (!existingUser) {
+            logger.warn(`[Push] Device ${sn} reported unknown user UID ${uid}. Ignoring (SDK DB is source of truth).`);
+            continue;
+          }
+
+          // Only update device-priority fields: card, password
+          // Do NOT overwrite name or privilege from device pushes
+          const updateData: any = {};
+          if (card && card !== existingUser.cardNumber) {
+            updateData.cardNumber = card;
+          }
+          if (password && password !== existingUser.password) {
+            updateData.password = password;
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            await prisma.user.update({
+              where: { uid: uid },
+              data: updateData,
+            });
+            logger.info(`[Push] Updated device-priority fields for UID ${uid} from device ${sn}:`, Object.keys(updateData));
+          } else {
+            logger.debug(`[Push] User UID ${uid} from device ${sn} — no device-priority field changes`);
+          }
+
           // Trigger Webhook
-          WebhookService.queueWebhook('user_synced_from_device', { deviceSn: sn, user });
+          WebhookService.queueWebhook('user_synced_from_device', { deviceSn: sn, user: existingUser });
 
-          // Broadcast to ALL OTHER connected devices in the same Area.
-          // If user has no area (null), broadcast to ALL devices.
-          const deviceFilter: any = { serialNumber: { not: sn } };
-          if (user.areaId !== null) {
-            deviceFilter.areaId = user.areaId;
-          }
-          const targetDevices = await prisma.device.findMany({ where: deviceFilter });
-          
-          for (const device of targetDevices) {
-            // Track sync state
-            await prisma.userDevice.upsert({
-              where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
-              create: { userId: user.id, deviceId: device.id, syncedAt: null },
-              update: { syncedAt: null }
-            });
-
-            const cmdData = buildUserInfoCommand(uid, name || user.name, user.privilege, card || user.cardNumber);
-            await prisma.commandQueue.create({
-              data: {
-                deviceSn: device.serialNumber,
-                commandType: 'UPDATE_USERINFO',
-                commandData: cmdData,
-                status: 'pending',
-              }
-            });
-          }
         } catch (e) {
-          logger.error(`[Push] Failed to sync user`, { error: (e as Error).message });
+          logger.error(`[Push] Failed to process user from device`, { error: (e as Error).message });
           dbHasError = true;
         }
       }
@@ -409,18 +397,16 @@ router.post('/cdata', async (req: Request, res: Response) => {
       const uid = parseInt(uidStr, 10);
       if (!isNaN(uid) && tmp) {
         try {
-          // ENSURE USER EXISTS (Prevent Foreign Key Error if fingerprint arrives before user profile)
-          await prisma.user.upsert({
-            where: { uid: uid },
-            create: {
-              uid: uid,
-              name: `User ${uid}`,
-              status: 'active',
-              areaId: sourceDevice?.areaId || null,
-            },
-            update: {} // Do nothing if user already exists
-          });
+          // POLICY: Only accept biometric data for users that already exist in SDK DB.
+          // Do NOT create new user records from device biometric pushes.
+          const existingUser = await prisma.user.findUnique({ where: { uid: uid } });
 
+          if (!existingUser) {
+            logger.warn(`[Push] Biometric data from device ${sn} for unknown UID ${uid}. Ignoring (SDK DB is source of truth).`);
+            continue;
+          }
+
+          // Device has priority for biometric data — upsert the template
           const bioTemplate = await prisma.biometricTemplate.upsert({
             where: {
               uid_type_fingerId: {
@@ -449,44 +435,40 @@ router.post('/cdata', async (req: Request, res: Response) => {
           });
           logger.info(`[Push] Saved biometric (${table}) for UID: ${uid}`);
 
-          // Find the user to get their Area
-          const user = await prisma.user.findUnique({ where: { uid: uid } });
-          if (user) {
-            // Broadcast to ALL OTHER devices in the same Area.
-            // If user has no area (null), broadcast to ALL devices.
-            const deviceFilter: any = { serialNumber: { not: sn } };
-            if (user.areaId !== null) {
-              deviceFilter.areaId = user.areaId;
-            }
-            const targetDevices = await prisma.device.findMany({ where: deviceFilter });
-            
-            for (const device of targetDevices) {
-              // Track sync state
-              await prisma.userDevice.upsert({
-                where: { userId_deviceId: { userId: user.id, deviceId: device.id } },
-                create: { userId: user.id, deviceId: device.id, syncedAt: null },
-                update: { syncedAt: null }
-              });
+          // Broadcast to ALL OTHER devices in the same Area.
+          // If user has no area (null), broadcast to ALL devices.
+          const deviceFilter: any = { serialNumber: { not: sn } };
+          if (existingUser.areaId !== null) {
+            deviceFilter.areaId = existingUser.areaId;
+          }
+          const targetDevices = await prisma.device.findMany({ where: deviceFilter });
+          
+          for (const device of targetDevices) {
+            // Track sync state
+            await prisma.userDevice.upsert({
+              where: { userId_deviceId: { userId: existingUser.id, deviceId: device.id } },
+              create: { userId: existingUser.id, deviceId: device.id, syncedAt: null },
+              update: { syncedAt: null }
+            });
 
-              // Use commandBuilder for correct ADMS formatting
-              const cmdData = buildBiometricCommand({
-                uid: uid,
-                type: typeCode,
-                fingerId: parseInt(fidStr, 10),
-                size: parseInt(sizeStr, 10) || 0,
-                valid: parseInt(validStr, 10) || 1,
-                template: tmp,
-                rawData: line.trim(),
-              });
-              await prisma.commandQueue.create({
-                data: {
-                  deviceSn: device.serialNumber,
-                  commandType: 'UPDATE_BIOMETRIC',
-                  commandData: cmdData,
-                  status: 'pending',
-                }
-              });
-            }
+            // Use commandBuilder for correct ADMS formatting
+            const cmdData = buildBiometricCommand({
+              uid: uid,
+              type: typeCode,
+              fingerId: parseInt(fidStr, 10),
+              size: parseInt(sizeStr, 10) || 0,
+              valid: parseInt(validStr, 10) || 1,
+              template: tmp,
+              rawData: line.trim(),
+            });
+            await prisma.commandQueue.create({
+              data: {
+                deviceSn: device.serialNumber,
+                commandType: 'UPDATE_BIOMETRIC',
+                commandData: cmdData,
+                status: 'pending',
+              }
+            });
           }
         } catch (e) {
           logger.error(`[Push] Failed to save biometric`, { error: (e as Error).message });

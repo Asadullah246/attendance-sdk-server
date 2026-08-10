@@ -8,6 +8,7 @@ import { ConfigService } from './services/configService';
 import { AttendanceWorker } from './scheduler/attendanceWorker';
 import { ScheduleWorker } from './scheduler/scheduleWorker';
 import { MaintenanceWorker } from './scheduler/maintenanceWorker';
+import { ReconciliationWorker } from './scheduler/reconciliationWorker';
 
 async function startServer(): Promise<void> {
   logger.info('─────────────────────────────────────────');
@@ -38,6 +39,7 @@ async function startServer(): Promise<void> {
   await AttendanceWorker.start();
   ScheduleWorker.start();
   MaintenanceWorker.start();
+  ReconciliationWorker.start();
 
   // ─── Graceful Shutdown ───────────────────────────────────────────
   const shutdown = async (signal: string): Promise<void> => {
