@@ -153,6 +153,17 @@ export class ScheduleService {
   }
 
   /**
+   * Remove multiple schedule assignments
+   */
+  static async bulkRemoveSchedules(ids: number[]) {
+    return prisma.employeeSchedule.deleteMany({
+      where: {
+        id: { in: ids }
+      }
+    });
+  }
+
+  /**
    * Fetch schedules based on filters
    */
   static async getSchedules(filters: { date?: string; uid?: number; dateFrom?: string; dateTo?: string }) {

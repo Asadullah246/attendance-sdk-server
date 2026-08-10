@@ -6,6 +6,7 @@ import {
   GetSchedulesQuerySchema, 
   AssignScheduleBodySchema, 
   BulkAssignScheduleBodySchema, 
+  BulkDeleteScheduleBodySchema,
   ScheduleIdParamSchema 
 } from '../dtos/schedule.dto';
 import { z } from 'zod';
@@ -59,6 +60,19 @@ router.post('/bulk',
     try {
       const result = await ScheduleService.bulkAssignSchedule(data);
       res.json(successResponse(result, `Successfully scheduled ${result.count} shifts`));
+    } catch (error) {
+      res.status(400).json(errorResponse((error as Error).message, 400));
+    }
+  })
+);
+
+router.post('/bulk-delete',
+  validateRequest(z.object({ body: BulkDeleteScheduleBodySchema })),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { ids } = req.body;
+    try {
+      const result = await ScheduleService.bulkRemoveSchedules(ids);
+      res.json(successResponse(result, `Successfully deleted ${result.count} schedules`));
     } catch (error) {
       res.status(400).json(errorResponse((error as Error).message, 400));
     }

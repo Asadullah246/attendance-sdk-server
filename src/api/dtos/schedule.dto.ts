@@ -44,6 +44,13 @@ export const ScheduleIdParamSchema = z.object({
   id: z.string().openapi({ description: 'Schedule ID', example: '1' })
 });
 
+export const BulkDeleteScheduleBodySchema = z.object({
+  ids: z.array(z.number().int()).min(1).openapi({
+    description: 'Array of schedule IDs to delete',
+    example: [1, 2, 3]
+  })
+});
+
 import { ShiftSchema } from './shift.dto';
 
 export const ScheduleSchema = z.object({
