@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { getPrisma } from '../../database/prisma';
 import { CommandService } from '../../services/commandService';
+import { ReconciliationService } from '../../services/reconciliationService';
 import { successResponse, errorResponse } from '../../utils/helpers';
 import { validateRequest } from '../middleware/validate';
 import { CreateUserBodySchema, DeleteUserParamSchema } from '../dtos/user.dto';
@@ -302,6 +303,11 @@ router.post('/bulk',
         logger.error(`[Users Bulk] Error processing user ${numericUid}`, { error: (err as Error).message });
       }
     }
+
+    // Trigger reconciliation in the background so it catches any missed sync states immediately
+    ReconciliationService.reconcileAllDevices().catch(err => {
+      logger.error(`[Users Bulk] Background reconciliation failed`, { error: err.message });
+    });
 
     const msg = `Bulk sync complete: ${results.created} created, ${results.updated} updated, ${results.unchanged} unchanged, ${results.errors} errors`;
     res.json(successResponse(results, msg));
