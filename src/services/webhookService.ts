@@ -35,7 +35,7 @@ export class WebhookService {
         },
       });
       
-      logger.info(`[WebhookService] Queued ${eventType} event for Main App`);
+      logger.info(`[WebhookService] Queued ${eventType} event for Main App (URL: ${webhookUrl})`);
     } catch (error) {
       logger.error(`[WebhookService] Failed to queue webhook`, { error: (error as Error).message });
     }
@@ -80,7 +80,7 @@ export class WebhookService {
               where: { id: item.id },
               data: { status: 'success', lastError: null },
             });
-            logger.info(`[WebhookService] Successfully delivered webhook ${item.id} to ${item.url}`);
+            logger.info(`[WebhookService] Successfully delivered ${item.eventType} webhook ${item.id} to ${item.url}`);
           } else {
             throw new Error(`HTTP ${response.status} - ${response.statusText}`);
           }

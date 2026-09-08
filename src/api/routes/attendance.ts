@@ -111,7 +111,9 @@ router.post('/',
 
     // 1. Queue webhooks (both raw_attendance and attendance for compatibility)
     await WebhookService.queueWebhook('raw_attendance', log);
+    logger.info(`[WebhookService] Queued webhook raw_attendance for UID: ${numericUid}`);
     await WebhookService.queueWebhook('attendance', log);
+    logger.info(`[WebhookService] Queued webhook attendance for UID: ${numericUid}`);
 
     // 2. --- LIVE CALCULATION ---
     const todayStr = punchTimeDate.toISOString().split('T')[0];

@@ -34,6 +34,7 @@ export class AttendanceCalculationService {
         createdAt: report.createdAt ? report.createdAt.toISOString() : new Date().toISOString(),
         updatedAt: report.updatedAt ? report.updatedAt.toISOString() : new Date().toISOString()
       }];
+      logger.info(`[LiveCalc] Attempting to queue time_card webhook for UID ${report.uid}. Payload prepared.`);
       await WebhookService.queueWebhook('time_card', payload);
     } catch (e) {
       logger.error(`[Webhook] Error formatting TimeCard`, { error: (e as Error).message });
@@ -285,8 +286,11 @@ export class AttendanceCalculationService {
     });
 
     if (existingReport && existingReport.isManualOverride) {
+      logger.info(`[LiveCalc] Skipping report generation for UID ${uid} because manual override is active.`);
       return null;
     }
+
+    logger.info(`[LiveCalc] Generating report for UID ${uid}. Calculated status: ${result.status}, workingMinutes: ${result.workingMinutes}. Upserting DailyAttendanceReport.`);
 
     const upsertedReport = await prisma.dailyAttendanceReport.upsert({
       where: {
