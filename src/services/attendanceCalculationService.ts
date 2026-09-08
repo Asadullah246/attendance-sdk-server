@@ -237,7 +237,10 @@ export class AttendanceCalculationService {
     //   }
     // }
 
-    if (!schedule) return null;
+    if (!schedule) {
+      logger.warn(`[LiveCalc] No schedule found for UID ${uid} on ${dateStr}. Calculation aborted and no time_card webhook sent.`);
+      return null;
+    }
 
     const logsWindowStart = new Date(targetDate);
     logsWindowStart.setDate(logsWindowStart.getDate() - 1);
