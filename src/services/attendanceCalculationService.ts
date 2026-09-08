@@ -237,6 +237,9 @@ export class AttendanceCalculationService {
     //   }
     // }
 
+
+    logger.info(`[LiveCalc] Schedule found for UID ${uid} on ${dateStr}: ${JSON.stringify(schedule)}`);
+
     if (!schedule) {
       logger.warn(`[LiveCalc] No schedule found for UID ${uid} on ${dateStr}. Calculation aborted and no time_card webhook sent.`);
       return null;
