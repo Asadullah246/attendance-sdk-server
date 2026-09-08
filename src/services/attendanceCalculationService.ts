@@ -42,14 +42,20 @@ export class AttendanceCalculationService {
   }
 
   /**
+   * Helper to get midnight in the device's configured timezone.
+   */
+  private static getMidnightInDeviceTimezone(scheduleDateISO: string): Date {
+    const dateStr = scheduleDateISO.split('T')[0];
+    const offsetStr = appConfig.deviceTimezoneOffset || '+00:00';
+    return new Date(`${dateStr}T00:00:00${offsetStr}`);
+  }
+
+  /**
    * Helper to add minute offsets to a base date.
    */
-  private static offsetToAbsoluteTime(scheduleDate: Date, offsetMinutes: number): Date {
-    const d = new Date(scheduleDate);
-    // Ensure it's at midnight of that date
-    d.setHours(0, 0, 0, 0);
-    d.setMinutes(d.getMinutes() + offsetMinutes);
-    return d;
+  private static offsetToAbsoluteTime(deviceMidnight: Date, offsetMinutes: number): Date {
+    // Add offset directly to the UTC timestamp to remain timezone-agnostic
+    return new Date(deviceMidnight.getTime() + offsetMinutes * 60000);
   }
 
   // ─── Refactored Helper Methods ───────────────────────────────────────
@@ -152,8 +158,7 @@ export class AttendanceCalculationService {
     timetable: any,
     rawLogs: any[]
   ) {
-    const [year, month, day] = schedule.scheduleDate.toISOString().split('T')[0].split('-');
-    const localMidnight = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), 0, 0, 0, 0);
+    const localMidnight = this.getMidnightInDeviceTimezone(schedule.scheduleDate.toISOString());
     const shiftStart = this.offsetToAbsoluteTime(localMidnight, timetable.shiftStartOffset);
     const shiftEnd = this.offsetToAbsoluteTime(localMidnight, timetable.shiftEndOffset);
     const breakMinutes = timetable.breakMinutes || 0;
@@ -264,8 +269,7 @@ export class AttendanceCalculationService {
       orderBy: { punchTime: 'asc' }
     });
 
-    const [sYear, sMonth, sDay] = schedule.scheduleDate.toISOString().split('T')[0].split('-');
-    const localMidnight = new Date(parseInt(sYear, 10), parseInt(sMonth, 10) - 1, parseInt(sDay, 10), 0, 0, 0, 0);
+    const localMidnight = this.getMidnightInDeviceTimezone(schedule.scheduleDate.toISOString());
 
     const windowStart = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkInStartOffset);
     const windowEnd = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkOutEndOffset);
@@ -383,8 +387,7 @@ export class AttendanceCalculationService {
 
     for (const schedule of schedules) {
       try {
-        const [sYear, sMonth, sDay] = schedule.scheduleDate.toISOString().split('T')[0].split('-');
-        const localMidnight = new Date(parseInt(sYear, 10), parseInt(sMonth, 10) - 1, parseInt(sDay, 10), 0, 0, 0, 0);
+        const localMidnight = this.getMidnightInDeviceTimezone(schedule.scheduleDate.toISOString());
 
         // Build an overall window from checkInStart to checkOutEnd
         const windowStart = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkInStartOffset);
