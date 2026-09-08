@@ -270,12 +270,20 @@ export class AttendanceCalculationService {
     const windowStart = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkInStartOffset);
     const windowEnd = this.offsetToAbsoluteTime(localMidnight, schedule.timetable.checkOutEndOffset);
 
+    logger.info(`[LiveCalc] Debug for UID ${uid}: windowStart=${windowStart.toISOString()} (Local: ${windowStart.toString()}), windowEnd=${windowEnd.toISOString()} (Local: ${windowEnd.toString()}), rawLogsDb count=${rawLogsDb.length}`);
+    for (const l of rawLogsDb) {
+      logger.info(`[LiveCalc] Debug log in DB for UID ${uid}: punchTime=${l.punchTime.toISOString()}`);
+    }
+
     const rawLogs = rawLogsDb.filter(log => 
       log.punchTime.getTime() >= windowStart.getTime() && 
       log.punchTime.getTime() <= windowEnd.getTime()
     );
 
-    if (rawLogs.length === 0) return null; // Let markAbsentees handle this
+    if (rawLogs.length === 0) {
+      logger.info(`[LiveCalc] Skipping report generation for UID ${uid} because no logs matched the window [${windowStart.toISOString()} - ${windowEnd.toISOString()}]`);
+      return null; // Let markAbsentees handle this
+    }
 
     const result = this.calculateForEmployee(schedule, schedule.timetable, rawLogs);
 
