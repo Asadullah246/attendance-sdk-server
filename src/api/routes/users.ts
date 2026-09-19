@@ -314,6 +314,38 @@ router.post('/bulk',
   })
 );
 
+// ─── DELETE /api/v1/users/clear-all ──────────────────────────────────────
+router.delete('/clear-all', asyncHandler(async (req: Request, res: Response) => {
+  // 1. Fetch all users
+  const users = await prisma.user.findMany();
+  
+  if (users.length === 0) {
+    return res.json(successResponse(null, 'No users to delete'));
+  }
+
+  // 2. Queue delete command to ALL devices for ALL users
+  const devices = await prisma.device.findMany();
+  
+  for (const device of devices) {
+    for (const user of users) {
+      await CommandService.deleteUser(device.serialNumber, user.uid);
+    }
+  }
+
+  // 3. Clear data from SDK database
+  await prisma.attendanceLog.deleteMany();
+  await prisma.employeeSchedule.deleteMany();
+  await prisma.dailyAttendanceReport.deleteMany();
+  await prisma.biometricTemplate.deleteMany();
+  await prisma.userDevice.deleteMany();
+  const deletedUsers = await prisma.user.deleteMany();
+
+  return res.json(successResponse(
+    { usersDeleted: deletedUsers.count, commandsQueued: users.length * devices.length },
+    'All users deleted from DB and deletion commands queued for all devices'
+  ));
+}));
+
 // ─── DELETE /api/v1/users/:uid ──────────────────────────────────────
 router.delete('/:uid', 
   validateRequest(z.object({ params: DeleteUserParamSchema })),

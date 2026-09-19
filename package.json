@@ -12,7 +12,8 @@
     "db:migrate": "npx prisma migrate dev",
     "db:generate": "npx prisma generate",
     "db:studio": "npx prisma studio",
-    "db:push": "npx prisma db push"
+    "db:push": "npx prisma db push",
+    "db:clear-users": "tsx scripts/clear-all-users.ts"
   },
   "keywords": [
     "zkteco",

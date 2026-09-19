@@ -60,6 +60,24 @@ document.addEventListener('DOMContentLoaded', () => {
         createUserModal.classList.add('hidden');
     });
 
+    document.getElementById('btn-delete-all-users')?.addEventListener('click', async () => {
+        if (confirm('Are you sure you want to delete all users from the database AND all devices? This action cannot be undone.')) {
+            try {
+                const res = await fetchWithAuth('/api/v1/users/clear-all', { method: 'DELETE' });
+                const json = await res.json();
+                if (json.success) {
+                    showToast('Successfully queued deletion for all users!');
+                    fetchUsers();
+                    fetchCommands();
+                } else {
+                    showToast('Failed to delete users: ' + json.message);
+                }
+            } catch (err) {
+                showToast('Error communicating with the server.');
+            }
+        }
+    });
+
     const assignScheduleModal = document.getElementById('assign-schedule-modal');
     document.getElementById('btn-open-assign-schedule').addEventListener('click', () => {
         assignScheduleModal.classList.remove('hidden');
