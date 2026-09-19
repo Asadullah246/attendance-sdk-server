@@ -60,6 +60,7 @@ import { ShiftSchema } from './shift.dto';
 export const ScheduleSchema = z.object({
   id: z.number().int().openapi({ example: 1 }),
   uid: z.number().int().openapi({ example: 1001 }),
+  userName: z.string().nullable().optional().openapi({ example: 'John Doe' }),
   timetableId: z.number().int().openapi({ example: 1 }),
   scheduleDate: z.string().openapi({ example: '2023-10-25T00:00:00.000Z' }),
   createdAt: z.string().openapi({ example: '2023-10-25T08:00:01Z' }),
