@@ -43,11 +43,19 @@ router.get('/',
       date: date as string,
       uid: uid ? parseInt(uid as string, 10) : undefined,
       dateFrom: dateFrom as string,
-      dateTo: dateTo as string
+      dateTo: dateTo as string,
+      page: req.query.page ? parseInt(req.query.page as string, 10) : undefined,
+      limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined
     };
 
-    const schedules = await ScheduleService.getSchedules(filters);
-    res.json(successResponse(schedules.map(mapScheduleResponse), 'Schedules fetched successfully'));
+    const paginatedResult = await ScheduleService.getSchedules(filters);
+    res.json(successResponse(
+      {
+        data: paginatedResult.data.map(mapScheduleResponse),
+        meta: paginatedResult.meta
+      }, 
+      'Schedules fetched successfully'
+    ));
   })
 );
 

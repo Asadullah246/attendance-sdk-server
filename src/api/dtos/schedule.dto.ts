@@ -8,7 +8,9 @@ export const GetSchedulesQuerySchema = z.object({
   date: z.string().optional().openapi({ description: 'Specific date (YYYY-MM-DD)', example: '2023-10-25' }),
   uid: z.number().int().optional().openapi({ description: 'Employee UID', example: 1001 }),
   dateFrom: z.string().optional().openapi({ description: 'Start date (YYYY-MM-DD)', example: '2023-10-01' }),
-  dateTo: z.string().optional().openapi({ description: 'End date (YYYY-MM-DD)', example: '2023-10-31' })
+  dateTo: z.string().optional().openapi({ description: 'End date (YYYY-MM-DD)', example: '2023-10-31' }),
+  page: z.string().optional().transform(val => val ? parseInt(val, 10) : 1),
+  limit: z.string().optional().transform(val => val ? parseInt(val, 10) : 50)
 });
 
 export const AssignScheduleBodySchema = z.object({
@@ -28,7 +30,8 @@ export const BulkAssignScheduleBodySchema = z.union([
     uids: z.array(z.union([z.number().int(), z.string().transform((val) => parseInt(val, 10))])).openapi({ example: [202601002, 202601001] }),
     timetableId: z.union([z.number().int(), z.string().transform((val) => parseInt(val, 10))]).openapi({ example: 1 }),
     dateFrom: z.string().openapi({ description: 'Start date (YYYY-MM-DD)', example: '2026-07-01' }),
-    dateTo: z.string().openapi({ description: 'End date (YYYY-MM-DD)', example: '2026-12-25' })
+    dateTo: z.string().openapi({ description: 'End date (YYYY-MM-DD)', example: '2026-12-25' }),
+    userNames: z.record(z.string(), z.string()).optional().openapi({ description: 'Map of UID to Name for auto-creation' })
   }),
   z.object({
     schedules: z.array(BulkAssignScheduleItemSchema).openapi({ 
@@ -36,7 +39,8 @@ export const BulkAssignScheduleBodySchema = z.union([
       example: [
         { uid: 105, timetableId: 1, scheduleDate: '2026-08-01' }
       ]
-    })
+    }),
+    userNames: z.record(z.string(), z.string()).optional().openapi({ description: 'Map of UID to Name for auto-creation' })
   })
 ]);
 

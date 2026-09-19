@@ -19,6 +19,7 @@ export interface BulkAssignInput {
     timetableId: number;
     scheduleDate: string; // ISO format date 'YYYY-MM-DD'
   }[];
+  userNames?: Record<string, string>;
 }
 
 export class ScheduleService {
@@ -54,6 +55,50 @@ export class ScheduleService {
    */
   static async bulkAssignSchedule(data: BulkAssignInput) {
     let createdCount = 0;
+
+    // --- AUTO-CREATE MISSING USERS ---
+    const allUids = new Set<number>();
+    if (data.uids) {
+      data.uids.forEach(u => allUids.add(typeof u === 'number' ? u : parseInt(String(u), 10)));
+    }
+    if (data.schedules) {
+      data.schedules.forEach(s => allUids.add(typeof s.uid === 'number' ? s.uid : parseInt(String(s.uid), 10)));
+    }
+
+    const uniqueUids = Array.from(allUids).filter(uid => !isNaN(uid));
+    
+    if (uniqueUids.length > 0) {
+      // Find existing users
+      const existingUsers = await prisma.user.findMany({
+        where: { uid: { in: uniqueUids } },
+        select: { uid: true }
+      });
+      const existingUidSet = new Set(existingUsers.map(u => u.uid));
+      
+      // Find missing users
+      const missingUids = uniqueUids.filter(uid => !existingUidSet.has(uid));
+      
+      // Create missing users
+      if (missingUids.length > 0) {
+        logger.info(`[ScheduleService] Auto-creating ${missingUids.length} missing users from schedule assignment`);
+        const newUsers = missingUids.map(uid => ({
+          uid,
+          name: data.userNames?.[String(uid)] || `User ${uid}`,
+          privilege: 0,
+          status: 'pending_add'
+        }));
+        
+        try {
+          await prisma.user.createMany({
+            data: newUsers,
+            skipDuplicates: true
+          });
+        } catch (err) {
+          logger.error(`[ScheduleService] Error auto-creating users`, { error: (err as Error).message });
+        }
+      }
+    }
+    // ---------------------------------
 
     // Case 1: Date Range bulk assignment ({ uids, timetableId, dateFrom, dateTo })
     if (data.uids && Array.isArray(data.uids) && data.timetableId && data.dateFrom && data.dateTo) {
@@ -166,7 +211,7 @@ export class ScheduleService {
   /**
    * Fetch schedules based on filters
    */
-  static async getSchedules(filters: { date?: string; uid?: number; dateFrom?: string; dateTo?: string }) {
+  static async getSchedules(filters: { date?: string; uid?: number; dateFrom?: string; dateTo?: string; page?: number; limit?: number }) {
     const where: any = {};
 
     if (filters.uid) {
@@ -181,11 +226,20 @@ export class ScheduleService {
       if (filters.dateTo) where.scheduleDate.lte = new Date(filters.dateTo);
     }
 
-    const schedules = await prisma.employeeSchedule.findMany({
-      where,
-      include: { timetable: true },
-      orderBy: { scheduleDate: 'asc' }
-    });
+    const page = filters.page || 1;
+    const limit = filters.limit || 50;
+    const skip = (page - 1) * limit;
+
+    const [total, schedules] = await Promise.all([
+      prisma.employeeSchedule.count({ where }),
+      prisma.employeeSchedule.findMany({
+        where,
+        include: { timetable: true },
+        orderBy: { scheduleDate: 'desc' },
+        skip,
+        take: limit
+      })
+    ]);
 
     const uids = Array.from(new Set(schedules.map((s) => s.uid)));
     const users = await prisma.user.findMany({
@@ -194,9 +248,19 @@ export class ScheduleService {
     });
     const userMap = new Map(users.map((u) => [u.uid, u.name]));
 
-    return schedules.map((s) => ({
+    const data = schedules.map((s) => ({
       ...s,
       userName: userMap.get(s.uid) || null
     }));
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
   }
 }
