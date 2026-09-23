@@ -360,6 +360,7 @@ document.getElementById('create-user-form').addEventListener('submit', async (e)
     e.preventDefault();
     const uid = document.getElementById('user-uid').value;
     const name = document.getElementById('user-name').value;
+    const cardNumber = document.getElementById('user-card').value;
     const privilege = document.getElementById('user-priv').value;
     const deviceSn = document.getElementById('user-device-sn').value;
 
@@ -369,7 +370,7 @@ document.getElementById('create-user-form').addEventListener('submit', async (e)
             headers: { 
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ uid, name, privilege, deviceSn })
+            body: JSON.stringify({ uid, name, privilege, deviceSn, cardNumber: cardNumber || undefined })
         });
         const json = await response.json();
         
